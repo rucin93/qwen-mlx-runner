@@ -10,10 +10,12 @@ tokens/s versus 16.6282 for its paired sequential baseline, with matching greedy
 traces. [The audited budget](m5-mtp-v0.6.md) identifies target execution as 86.78%
 of decode time. Shared Q4 unpacking for B2/B3 and register-resident multi-step
 DeltaNet improved isolated M1 tests, but their combined 0.6.1 release regressed
-to 23.3430 sustained tokens/s on M5. The [next step](performance-v0.6.2.md)
-isolates both changes on the same loaded model; neither remains enabled by
-default pending target-machine evidence. The memory saving from omitting
-unused final rollback snapshots is retained.
+to 23.3430 sustained tokens/s on M5. The [controlled follow-up](m5-kernel-comparison.md)
+isolates the loss to shared matrix unpacking. Legacy matrices plus batched
+DeltaNet win that two-prompt comparison at 28.5274 sustained tokens/s and become
+the 0.6.3 default. The memory saving from omitting unused final rollback
+snapshots is retained. The weaker Polish prompt still needs approximately 24%
+less target execution time to reach 32 at unchanged acceptance and other costs.
 The later block-4 report has Low Power Mode enabled and cannot be compared
 directly to the block-3 result with it disabled.
 

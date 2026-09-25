@@ -16,12 +16,21 @@ use std::{cell::Cell, time::Instant};
 pub use timing::FrameTiming;
 
 /// Independently selectable target-block schedules for controlled GPU A/B runs.
-/// The original schedules remain the default until device-specific measurements
-/// establish a faster choice. Single-token inference is unaffected.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
+/// M5 comparison selects original matmul plus batched recurrence by default.
+/// Both alternatives remain explicit options. Single-token inference is unaffected.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct BlockKernelMode {
     pub shared_matmul: bool,
     pub batched_delta: bool,
+}
+
+impl Default for BlockKernelMode {
+    fn default() -> Self {
+        Self {
+            shared_matmul: false,
+            batched_delta: true,
+        }
+    }
 }
 
 impl BlockKernelMode {
@@ -50,7 +59,7 @@ impl BlockKernelMode {
         };
         Self::parse(
             &read("QWEN_METAL_BLOCK_MATMUL", "legacy")?,
-            &read("QWEN_METAL_BLOCK_DELTA", "sequential")?,
+            &read("QWEN_METAL_BLOCK_DELTA", "batched")?,
         )
     }
 }
@@ -1244,10 +1253,11 @@ mod tests {
     #[test]
     fn block_kernel_modes_are_independent_and_reject_unknown_values() -> Result<()> {
         assert_eq!(
-            BlockKernelMode::parse("legacy", "sequential")?,
+            BlockKernelMode::parse("legacy", "batched")?,
             BlockKernelMode::default()
         );
         for (matmul, delta, shared_matmul, batched_delta) in [
+            ("legacy", "sequential", false, false),
             ("shared", "sequential", true, false),
             ("legacy", "batched", false, true),
             ("shared", "batched", true, true),

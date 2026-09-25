@@ -46,10 +46,12 @@ not reached.** See the [audited result](docs/m5-mtp-v0.6.md) and
 [setup, mixed-prompt benchmark and limitations](docs/native-mtp.md).
 
 The subsequent 0.6.1 M5 report regressed to **23.34 sustained tokens/s** with
-the same output tokens. Version 0.6.2 restores the earlier matrix and recurrent
-execution schedules by default and adds an independent, same-model comparison
-of both changes. Its full-model M5 speed has not yet been measured. See the
-[regression analysis and comparison command](docs/performance-v0.6.2.md).
+the same output tokens. The 0.6.2 four-configuration comparison isolates the
+regression to shared matrix unpacking. **0.6.3 selects the measured winning
+combination: legacy matrix + batched DeltaNet.** On the two diagnostic prompts
+it measures 28.53 sustained tokens/s, with medians of 25.59 for Polish explanation
+and 32.98 for code. This is a narrower workload than the earlier five-prompt
+result. See the [controlled comparison and remaining budget](docs/m5-kernel-comparison.md).
 
 Earlier results and implementation evidence remain in the
 [first iteration](docs/performance-2026-09-25.md),

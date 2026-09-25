@@ -169,7 +169,7 @@ fn mixed_cli_compares_verified_ids_and_never_promotes_short_samples() {
     );
     let report: Value = serde_json::from_slice(&result.stdout).unwrap();
     assert_eq!(report["kind"], "verified_mtp_chat_benchmark");
-    let default_mode = json!({"shared_matmul": false, "batched_delta": false});
+    let default_mode = json!({"shared_matmul": false, "batched_delta": true});
     assert_eq!(report["block_kernel_mode"], default_mode);
     assert_eq!(report["greedy_agreement"], true);
     assert_eq!(report["goal_32_tps_confirmed"], false);

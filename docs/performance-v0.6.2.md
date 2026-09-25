@@ -1,5 +1,10 @@
 # M5 regression audit and independent kernel comparison
 
+Follow-up: the user has completed the comparison below. The
+[audited M5 result](m5-kernel-comparison.md) identifies shared matrix unpacking
+as the regression source; 0.6.3 selects legacy matrices plus batched DeltaNet.
+The text below records the 0.6.2 investigation and validation at its release.
+
 The user's 0.6.1 full-model M5 Pro report **regressed from 26.7659 to 23.3430
 sustained MTP tokens/s (−12.79%)**. The paired sequential target stayed almost
 unchanged: 16.6282 to 16.6204 tokens/s. Version 0.6.2 restores the earlier

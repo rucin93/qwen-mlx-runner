@@ -5,10 +5,11 @@ MTP**, versus **16.63** for sequential generation on the same target. Complete
 greedy traces agree across all five prompts. **The mixed-use 32 tokens/s goal
 is not reached yet.** See the [audited result and time budget](m5-mtp-v0.6.md).
 The [0.6.1 follow-up](performance-v0.6.1.md) regressed to 23.34 sustained tokens/s
-on the same M5 workload despite isolated M1 improvements. Version 0.6.2 restores
-the earlier execution schedules by default and adds a
-[same-model comparison of the two changes](performance-v0.6.2.md). Its M5
-throughput is pending measurement.
+on the same M5 workload despite isolated M1 improvements. The subsequent
+[same-model comparison](m5-kernel-comparison.md) isolates the regression to
+shared matrix unpacking. Version 0.6.3 defaults to legacy matrices and batched
+DeltaNet: the combination measured at 28.53 sustained tokens/s over the two
+diagnostic prompts. The full five-prompt result for that combination is pending.
 
 Every matrix pass in the measured target graph streams approximately 14.41 GB
 of Q4 weights and BF16 metadata. The [Apple M5 Pro specification](https://www.apple.com/macbook-pro/specs/)
