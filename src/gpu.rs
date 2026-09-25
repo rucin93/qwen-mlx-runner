@@ -18,16 +18,27 @@ pub use timing::FrameTiming;
 /// Independently selectable target-block schedules for controlled GPU A/B runs.
 /// M5 comparison selects original matmul plus batched recurrence by default.
 /// Both alternatives remain explicit options. Single-token inference is unaffected.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BlockMatmulMode {
+    #[default]
+    Legacy,
+    Shared,
+    /// Experimental R2/T64 only for B3 BF16 Q4/g64 MLP up/down shapes.
+    /// Other shapes, metadata formats and block widths use Legacy.
+    MlpR2,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
 pub struct BlockKernelMode {
-    pub shared_matmul: bool,
+    pub matmul: BlockMatmulMode,
     pub batched_delta: bool,
 }
 
 impl Default for BlockKernelMode {
     fn default() -> Self {
         Self {
-            shared_matmul: false,
+            matmul: BlockMatmulMode::Legacy,
             batched_delta: true,
         }
     }
@@ -35,16 +46,18 @@ impl Default for BlockKernelMode {
 
 impl BlockKernelMode {
     fn parse(matmul: &str, delta: &str) -> Result<Self> {
-        ensure!(
-            matches!(matmul, "legacy" | "shared"),
-            "QWEN_METAL_BLOCK_MATMUL must be legacy or shared"
-        );
+        let matmul = match matmul {
+            "legacy" => BlockMatmulMode::Legacy,
+            "shared" => BlockMatmulMode::Shared,
+            "mlp-r2" => BlockMatmulMode::MlpR2,
+            _ => bail!("QWEN_METAL_BLOCK_MATMUL must be legacy, shared or mlp-r2"),
+        };
         ensure!(
             matches!(delta, "sequential" | "batched"),
             "QWEN_METAL_BLOCK_DELTA must be sequential or batched"
         );
         Ok(Self {
-            shared_matmul: matmul == "shared",
+            matmul,
             batched_delta: delta == "batched",
         })
     }
@@ -261,6 +274,7 @@ const KERNELS: &[&str] = &[
     "matmul_q4_g64_b2_shared_aligned_bf16",
     "matmul_q4_g64_b3_shared_aligned",
     "matmul_q4_g64_b3_shared_aligned_bf16",
+    "matmul_q4_g64_b3_mlp_r2_aligned_bf16",
 ];
 impl Gpu {
     pub fn new() -> Result<Self> {
@@ -668,7 +682,7 @@ impl Gpu {
                     self.matvec_variant == "aligned"
                         && offset(0) % 8 == 0
                         && offset(if name == "matmul_f16" { 1 } else { 3 }) % 16 == 0,
-                    self.block_kernel_mode.shared_matmul,
+                    self.block_kernel_mode.matmul,
                 )
                 .context("Unsupported matrix block specialization")?,
             )
@@ -774,6 +788,10 @@ impl Gpu {
             256
         } else if specialized == Some("attn_values_parallel") {
             params[0] as usize * (params[2] as usize).div_ceil(32) * 256
+        } else if specialized == Some("matmul_q4_g64_b3_mlp_r2_aligned_bf16") {
+            // Logical ABI remains rows*32; this specialization computes two
+            // output rows per SIMD group instead of Legacy's four.
+            (params[0] as usize).div_ceil(2) * 32
         } else if specialized.is_some() {
             (params[0] as usize).div_ceil(4) * 32
         } else {
@@ -860,7 +878,12 @@ fn ranges_overlap(a: usize, a_len: usize, b: usize, b_len: usize) -> bool {
     a < b + b_len && b < a + a_len
 }
 
-fn specialized_matmul(name: &str, p: &[u32], aligned: bool, shared: bool) -> Option<&'static str> {
+fn specialized_matmul(
+    name: &str,
+    p: &[u32],
+    aligned: bool,
+    mode: BlockMatmulMode,
+) -> Option<&'static str> {
     if name == "matmul_f16" {
         return [
             "matmul_f16_b1",
@@ -879,7 +902,14 @@ fn specialized_matmul(name: &str, p: &[u32], aligned: bool, shared: bool) -> Opt
         && u64::from(p[0]) * u64::from(p[1]) <= i32::MAX as u64
         && u64::from(p[1]) * u64::from(p[4]) <= i32::MAX as u64
     {
-        if shared {
+        if mode == BlockMatmulMode::MlpR2
+            && name == "matmul_affine_bf16"
+            && p[4] == 3
+            && matches!((p[0], p[1]), (17408, 5120) | (5120, 17408))
+        {
+            return Some("matmul_q4_g64_b3_mlp_r2_aligned_bf16");
+        }
+        if mode == BlockMatmulMode::Shared {
             match (p[4], name.ends_with("_bf16")) {
                 (2, false) => return Some("matmul_q4_g64_b2_shared_aligned"),
                 (2, true) => return Some("matmul_q4_g64_b2_shared_aligned_bf16"),
@@ -1256,24 +1286,30 @@ mod tests {
             BlockKernelMode::parse("legacy", "batched")?,
             BlockKernelMode::default()
         );
-        for (matmul, delta, shared_matmul, batched_delta) in [
-            ("legacy", "sequential", false, false),
-            ("shared", "sequential", true, false),
-            ("legacy", "batched", false, true),
-            ("shared", "batched", true, true),
+        for (value, mode) in [
+            ("legacy", BlockMatmulMode::Legacy),
+            ("shared", BlockMatmulMode::Shared),
+            ("mlp-r2", BlockMatmulMode::MlpR2),
         ] {
-            assert_eq!(
-                BlockKernelMode::parse(matmul, delta)?,
-                BlockKernelMode {
-                    shared_matmul,
-                    batched_delta
-                }
-            );
+            for (delta, batched_delta) in [("sequential", false), ("batched", true)] {
+                assert_eq!(
+                    BlockKernelMode::parse(value, delta)?,
+                    BlockKernelMode {
+                        matmul: mode,
+                        batched_delta
+                    }
+                );
+            }
         }
-        for invalid in ["", "auto", "SHARED", "shared "] {
+        for invalid in ["", "auto", "SHARED", "shared ", "mlp_r2", "MLP-R2"] {
             assert!(BlockKernelMode::parse(invalid, "sequential").is_err());
             assert!(BlockKernelMode::parse("legacy", invalid).is_err());
         }
+        assert_eq!(
+            serde_json::to_value(BlockKernelMode::default())?,
+            serde_json::json!({"matmul":"legacy", "batched_delta":true})
+        );
+        assert_eq!(serde_json::to_value(BlockMatmulMode::MlpR2)?, "mlp_r2");
         Ok(())
     }
 
@@ -1282,8 +1318,10 @@ mod tests {
         for batch in 1..=4 {
             for name in ["matmul_affine", "matmul_affine_bf16"] {
                 let params = [20, 5120, 4, 64, batch];
-                let legacy = specialized_matmul(name, &params, true, false).unwrap();
-                let shared = specialized_matmul(name, &params, true, true).unwrap();
+                let legacy =
+                    specialized_matmul(name, &params, true, BlockMatmulMode::Legacy).unwrap();
+                let shared =
+                    specialized_matmul(name, &params, true, BlockMatmulMode::Shared).unwrap();
                 assert!(!legacy.contains("_shared"));
                 assert_eq!(shared.contains("_shared"), matches!(batch, 2 | 3));
                 if matches!(batch, 1 | 4) {
@@ -1296,10 +1334,61 @@ mod tests {
                     ([20, 5120, 4, 32, batch], true),
                 ] {
                     assert_eq!(
-                        specialized_matmul(name, &fallback, aligned, false),
-                        specialized_matmul(name, &fallback, aligned, true),
+                        specialized_matmul(name, &fallback, aligned, BlockMatmulMode::Legacy),
+                        specialized_matmul(name, &fallback, aligned, BlockMatmulMode::Shared),
                     );
                 }
+            }
+        }
+    }
+
+    #[test]
+    fn mlp_r2_selection_is_limited_to_measured_shapes_and_format() {
+        // The vocabulary head, dense weights, other quantizations and remainder
+        // blocks must stay on the old kernels, even when the opt-in is active.
+        for (rows, cols) in [
+            (17408, 5120),
+            (5120, 17408),
+            (248320, 5120),
+            (20, 5120),
+            (17408, 512),
+            (17412, 5120),
+        ] {
+            for batch in 1..=4 {
+                for name in ["matmul_affine", "matmul_affine_bf16"] {
+                    for (bits, group) in [(4, 32), (4, 64), (4, 128), (8, 64)] {
+                        for aligned in [false, true] {
+                            let params = [rows, cols, bits, group, batch];
+                            let want_r2 = aligned
+                                && name == "matmul_affine_bf16"
+                                && batch == 3
+                                && bits == 4
+                                && group == 64
+                                && matches!((rows, cols), (17408, 5120) | (5120, 17408));
+                            let selected =
+                                specialized_matmul(name, &params, aligned, BlockMatmulMode::MlpR2);
+                            if want_r2 {
+                                assert_eq!(selected, Some("matmul_q4_g64_b3_mlp_r2_aligned_bf16"));
+                            } else {
+                                assert_eq!(
+                                    selected,
+                                    specialized_matmul(
+                                        name,
+                                        &params,
+                                        aligned,
+                                        BlockMatmulMode::Legacy
+                                    ),
+                                    "fallback {name} {params:?} aligned={aligned}"
+                                );
+                            }
+                        }
+                    }
+                }
+                let dense = [rows, cols, batch];
+                assert_eq!(
+                    specialized_matmul("matmul_f16", &dense, true, BlockMatmulMode::MlpR2),
+                    specialized_matmul("matmul_f16", &dense, true, BlockMatmulMode::Legacy)
+                );
             }
         }
     }
@@ -1318,29 +1407,39 @@ mod tests {
         for batch in 1..=4 {
             let params = [20, 5120, 4, 64, batch];
             assert!(
-                specialized_matmul("matmul_affine", &params, true, false)
+                specialized_matmul("matmul_affine", &params, true, BlockMatmulMode::Legacy)
                     .unwrap()
                     .ends_with("_aligned")
             );
             assert!(
-                specialized_matmul("matmul_affine_bf16", &params, true, false)
+                specialized_matmul("matmul_affine_bf16", &params, true, BlockMatmulMode::Legacy)
                     .unwrap()
                     .ends_with("_aligned_bf16")
             );
             assert!(
-                !specialized_matmul("matmul_affine", &params, false, false)
+                !specialized_matmul("matmul_affine", &params, false, BlockMatmulMode::Legacy)
                     .unwrap()
                     .ends_with("_aligned")
             );
             assert!(
-                !specialized_matmul("matmul_affine", &[19, 5120, 4, 64, batch], true, false)
-                    .unwrap()
-                    .ends_with("_aligned")
+                !specialized_matmul(
+                    "matmul_affine",
+                    &[19, 5120, 4, 64, batch],
+                    true,
+                    BlockMatmulMode::Legacy
+                )
+                .unwrap()
+                .ends_with("_aligned")
             );
             assert!(
-                !specialized_matmul("matmul_affine", &[20, 5120, 8, 64, batch], true, false)
-                    .unwrap()
-                    .ends_with("_aligned")
+                !specialized_matmul(
+                    "matmul_affine",
+                    &[20, 5120, 8, 64, batch],
+                    true,
+                    BlockMatmulMode::Legacy
+                )
+                .unwrap()
+                .ends_with("_aligned")
             );
         }
     }

@@ -1,6 +1,6 @@
 [package]
 name = "qwen-metal"
-version = "0.6.3"
+version = "0.6.4"
 edition = "2024"
 description = "Independent Rust and Metal inference for dense Qwen3.5/3.8 text models"
 license = "MIT"

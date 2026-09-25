@@ -2,7 +2,7 @@
 use anyhow::{Context, Result, ensure};
 use qwen_metal::{
     chat::{ChatTokenizer, GenerationOutput, GenerationRequest, Message},
-    gpu::BlockKernelMode,
+    gpu::{BlockKernelMode, BlockMatmulMode},
     mtp_chat::{MtpChatEngine, MtpGenerationStats},
 };
 use serde::{Deserialize, Serialize};
@@ -24,6 +24,7 @@ pub struct Options {
     pub thinking: bool,
     pub compare: bool,
     pub compare_block_kernels: bool,
+    pub compare_mlp_r2: bool,
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct Prompt {
@@ -39,10 +40,12 @@ enum Mode {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 enum BlockVariant {
+    SequentialTarget,
     LegacySequential,
     SharedSequential,
     LegacyBatched,
     SharedBatched,
+    MlpR2Batched,
 }
 const BLOCK_VARIANTS: [BlockVariant; 4] = [
     BlockVariant::LegacySequential,
@@ -51,12 +54,34 @@ const BLOCK_VARIANTS: [BlockVariant; 4] = [
     BlockVariant::SharedBatched,
 ];
 impl BlockVariant {
-    fn kernel_mode(self) -> BlockKernelMode {
-        BlockKernelMode {
-            shared_matmul: matches!(self, Self::SharedSequential | Self::SharedBatched),
-            batched_delta: matches!(self, Self::LegacyBatched | Self::SharedBatched),
+    fn generation_mode(self) -> Mode {
+        if self == Self::SequentialTarget {
+            Mode::SequentialTarget
+        } else {
+            Mode::Mtp
         }
     }
+    fn kernel_mode(self) -> BlockKernelMode {
+        BlockKernelMode {
+            matmul: match self {
+                Self::SharedSequential | Self::SharedBatched => BlockMatmulMode::Shared,
+                Self::MlpR2Batched => BlockMatmulMode::MlpR2,
+                _ => BlockMatmulMode::Legacy,
+            },
+            batched_delta: !matches!(self, Self::LegacySequential | Self::SharedSequential),
+        }
+    }
+}
+const MLP_R2_VARIANTS: [BlockVariant; 3] = [
+    BlockVariant::SequentialTarget,
+    BlockVariant::LegacyBatched,
+    BlockVariant::MlpR2Batched,
+];
+// Latin rotation balances timing positions every three measured runs per prompt.
+// It does not balance immediate predecessors.
+fn mlp_r2_variant_order(prompt_index: usize, run: usize) -> [BlockVariant; 3] {
+    let start = (prompt_index + run.saturating_sub(1)) % MLP_R2_VARIANTS.len();
+    std::array::from_fn(|position| MLP_R2_VARIANTS[(start + position) % MLP_R2_VARIANTS.len()])
 }
 // Each four-run cycle places each configuration once in every timing position.
 // Williams rows balance immediate predecessors; alternate prompts/cycles reverse them.
@@ -463,6 +488,224 @@ fn run_block_comparison(
     Ok(())
 }
 
+fn comparisons_agree(comparisons: &[Value]) -> bool {
+    !comparisons.is_empty()
+        && comparisons.iter().all(|c| {
+            c["token_ids_equal"] == true
+                && c["output_text_equal"] == true
+                && c["finish_reason_equal"] == true
+        })
+}
+
+fn mlp_r2_goal_status(
+    captures: &[Capture],
+    prompts: &[Prompt],
+    runs: usize,
+    ordinary_comparisons: &[Value],
+    eligible_matrices: usize,
+) -> Value {
+    let candidate = BlockVariant::MlpR2Batched;
+    let measured: Vec<_> = captures
+        .iter()
+        .filter(|c| !c.warmup && c.mode == Mode::Mtp && c.variant == Some(candidate))
+        .collect();
+    let minimum = measured.iter().map(|c| c.sustained_decode_tokens).min();
+    let sufficient = minimum.is_some_and(|n| n >= 64);
+    let complete = !prompts.is_empty()
+        && measured.len() == prompts.len() * runs
+        && prompts.iter().all(|p| {
+            (1..=runs).all(|run| {
+                measured
+                    .iter()
+                    .filter(|c| c.prompt_name == p.name && c.run == run)
+                    .count()
+                    == 1
+            })
+        });
+    let all_medians = !prompts.is_empty()
+        && prompts.iter().all(|prompt| {
+            summarize_variant(captures, Some(&prompt.name), Mode::Mtp, Some(candidate))
+            ["median_sustained_decode_tokens_per_second"].as_f64().is_some_and(|rate| rate >= 32.)
+        });
+    let agreement = ordinary_comparisons.len() == prompts.len() * (runs + 1) * 2
+        && comparisons_agree(ordinary_comparisons);
+    let candidate_applicable = eligible_matrices > 0;
+    json!({
+        "candidate_variant": candidate,
+        "candidate_applicable": candidate_applicable,
+        "all_candidate_prompt_medians_at_least_32_sustained_tps": all_medians,
+        "minimum_sustained_decode_tokens_per_candidate_run": minimum,
+        "sustained_sample_sufficient": sufficient,
+        "candidate_measured_schedule_complete": complete,
+        "greedy_agreement": agreement,
+        "goal_32_tps_confirmed": candidate_applicable && runs >= 3 && complete && all_medians && sufficient && agreement,
+        "goal_confirmation_note": "Applies only to the selective MLP R2 candidate on the recorded workload and conditions. The target must contain at least one eligible selective R2 matrix. Every candidate prompt median must reach 32 sustained tok/s over at least three measured runs, each measured candidate run must contain at least 64 sustained tokens, and both MTP variants must match ordinary target IDs, text and finish reason for every prompt/run including warmups."
+    })
+}
+
+fn run_mlp_r2_comparison(
+    options: &Options,
+    prompts: &[Prompt],
+    workload: Vec<Value>,
+    engine: &mut MtpChatEngine,
+    load_seconds: f64,
+) -> Result<()> {
+    ensure!(
+        engine.engine().kernel_mode() == "aligned",
+        "--compare-mlp-r2 requires the aligned nonreference GPU path"
+    );
+    ensure!(
+        engine.engine().metadata_mode() == "bf16",
+        "--compare-mlp-r2 requires QWEN_METAL_METADATA=bf16"
+    );
+    let mut captures = Vec::new();
+    let mut ordinary_comparisons = Vec::new();
+    let mut variant_comparisons = Vec::new();
+    let mut executed_schedule = Vec::new();
+    for run in 0..=options.runs {
+        for (prompt_index, prompt) in prompts.iter().enumerate() {
+            let request = request(options, prompt);
+            let order = mlp_r2_variant_order(prompt_index, run);
+            executed_schedule.push(json!({"prompt_name": prompt.name, "run": run, "warmup": run == 0, "variants": order}));
+            let start = captures.len();
+            for variant in order {
+                engine.clear_cache();
+                engine.set_block_kernel_mode(variant.kernel_mode())?;
+                let actual_mode = engine.engine().block_kernel_mode();
+                ensure!(
+                    actual_mode == variant.kernel_mode(),
+                    "target block kernel selection differs from requested configuration"
+                );
+                eprintln!(
+                    "{} {:?} {} {}",
+                    prompt.name,
+                    variant,
+                    if run == 0 { "warmup" } else { "run" },
+                    run
+                );
+                let before = crate::system_status::snapshot();
+                let started = Instant::now();
+                let mode = variant.generation_mode();
+                let (output, stats) = match mode {
+                    Mode::Mtp => engine.generate_with_stats(&request, &mut |_| true)?,
+                    Mode::SequentialTarget => {
+                        engine.generate_reference_with_stats(&request, &mut |_| true)?
+                    }
+                };
+                let wall = started.elapsed().as_secs_f64();
+                let after = crate::system_status::snapshot();
+                let mut row = record(
+                    prompt,
+                    run,
+                    mode,
+                    output,
+                    stats,
+                    wall,
+                    before,
+                    after,
+                    actual_mode,
+                )?;
+                row.variant = Some(variant);
+                eprintln!(
+                    "{}",
+                    json!({"prompt": prompt.name, "variant": variant, "run": run,
+                    "warmup": run == 0, "completion_tokens": row.completion_tokens,
+                    "sustained_decode_tokens_per_second": row.sustained_decode_tokens_per_second,
+                    "decode_seconds": row.decode_seconds})
+                );
+                captures.push(row);
+            }
+            let group = &captures[start..];
+            let reference = group
+                .iter()
+                .find(|c| c.variant == Some(BlockVariant::SequentialTarget))
+                .expect("schedule includes ordinary target");
+            for candidate in group.iter().filter(|c| c.mode == Mode::Mtp) {
+                let mut comparison = compare_greedy(candidate, reference);
+                comparison["variant"] = json!(candidate.variant);
+                comparison["baseline_variant"] = json!(BlockVariant::SequentialTarget);
+                ordinary_comparisons.push(comparison);
+            }
+            let legacy = group
+                .iter()
+                .find(|c| c.variant == Some(BlockVariant::LegacyBatched))
+                .expect("schedule includes legacy MTP");
+            let candidate = group
+                .iter()
+                .find(|c| c.variant == Some(BlockVariant::MlpR2Batched))
+                .expect("schedule includes candidate MTP");
+            let mut comparison = compare_greedy(candidate, legacy);
+            let object = comparison.as_object_mut().unwrap();
+            let candidate_token = object.remove("mtp_token_at_difference").unwrap();
+            let baseline_token = object.remove("target_token_at_difference").unwrap();
+            let speedup = object.remove("sustained_decode_speedup").unwrap();
+            object.insert("variant".into(), json!(BlockVariant::MlpR2Batched));
+            object.insert(
+                "baseline_variant".into(),
+                json!(BlockVariant::LegacyBatched),
+            );
+            object.insert("variant_token_at_difference".into(), candidate_token);
+            object.insert("baseline_token_at_difference".into(), baseline_token);
+            object.insert("sustained_decode_speedup_vs_legacy_batched".into(), speedup);
+            variant_comparisons.push(comparison);
+        }
+    }
+    let variants: Vec<_> = MLP_R2_VARIANTS.iter().map(|&variant| {
+        let mode = variant.generation_mode();
+        let per_prompt: Vec<_> = prompts.iter().map(|prompt| json!({
+            "prompt_name": prompt.name,
+            "aggregate": summarize_variant(&captures, Some(&prompt.name), mode, Some(variant)),
+        })).collect();
+        json!({
+            "variant": variant, "mode": mode, "block_kernel_mode": variant.kernel_mode(),
+            "aggregate": summarize_variant(&captures, None, mode, Some(variant)),
+            "per_prompt": per_prompt, "system_conditions": condition_summary(&captures, Some(variant)),
+        })
+    }).collect();
+    let goal = mlp_r2_goal_status(
+        &captures,
+        prompts,
+        options.runs,
+        &ordinary_comparisons,
+        engine.engine().mlp_r2_eligible_matrices(),
+    );
+    let target = engine.engine();
+    let mut report = json!({
+        "kind": "verified_mtp_mlp_r2_comparison", "engine_version": env!("CARGO_PKG_VERSION"),
+        "device": target.device_name(), "model_path": options.model, "mtp_path": options.mtp,
+        "context_capacity": options.context, "block_size": options.block_size,
+        "max_tokens": options.max_tokens, "measured_runs_per_prompt_per_variant": options.runs,
+        "load_seconds": load_seconds, "allocated_bytes": target.allocated_bytes(),
+        "allocation_note": "Metal device-wide current allocation, including the one target, resident MTP adapter and scratch buffers, after all variants.",
+        "kernel_mode": target.kernel_mode(), "norm_mode": target.norm_mode(),
+        "attention_mode": target.attention_mode(), "metadata_mode": target.metadata_mode(),
+        "compacted_matrices": target.metadata_stats().0, "metadata_saved_bytes": target.metadata_stats().1,
+        "sampling": {"temperature": options.temperature, "top_p": options.top_p,
+            "top_k": options.top_k, "seed": options.seed, "thinking": options.thinking},
+        "baseline_variant": BlockVariant::LegacyBatched,
+        "independent_sequential_target_comparison_performed": true,
+        "mlp_r2_eligible_target_matrices": target.mlp_r2_eligible_matrices(),
+        "variant_greedy_agreement": comparisons_agree(&variant_comparisons),
+        "candidate_scope": "Selective R2 is used only for eligible aligned B3 Q4/group64 BF16 MLP matrices: 17408x5120 and 5120x17408. All other matrices and shorter blocks retain legacy dispatch. Adapter kernels remain unchanged. Small fixtures can exercise accounting without eligible matrices.",
+        "schedule": {
+            "iteration_order": "run, prompt, variant",
+            "variant_ids": MLP_R2_VARIANTS,
+            "rule": "Run 0 is one excluded warmup per prompt and variant, completed before measured runs. For measured run r>=1 and zero-based prompt p, rotate variant_ids left by (p+r-1)%3; warmup uses the run-1 order. Three measured runs place each variant once in each position per prompt. This rotation does not balance immediate predecessors. Captures and executed_groups are in execution order.",
+            "executed_groups": executed_schedule,
+        },
+        "workload": workload, "variants": variants,
+        "greedy_comparisons": ordinary_comparisons, "variant_comparisons": variant_comparisons,
+        "system_conditions": condition_summary(&captures, None), "captures": captures,
+        "notes": "One loaded target and adapter shared by all variants. The explicit pre-capture cache reset and kernel selection happen before generation wall timing. Additional entry/exit cache resets inside the generation API are included in generation_wall_seconds and excluded from decode_seconds. Ordinary sequential_target calls the ordinary autoregressive target path; legacy_batched and mlp_r2_batched use verified MTP with batched DeltaNet. Each prompt/variant has one separately recorded warmup excluded from all aggregates. Summaries never pool variants. Actual verified output IDs determine throughput; EOS is honored. Sustained decode excludes the first prefill-produced token and includes the entire post-prefill interval. Both MTP variants are compared to ordinary target outputs for identical prompt/run, including warmups; selective R2 is also compared directly to legacy MTP. No kernel selection is automatically promoted."
+    });
+    report
+        .as_object_mut()
+        .unwrap()
+        .extend(goal.as_object().unwrap().clone());
+    println!("{}", serde_json::to_string_pretty(&report)?);
+    Ok(())
+}
+
 pub fn run(options: Options) -> Result<()> {
     ensure!(
         options.runs > 0 && options.runs <= 100,
@@ -484,6 +727,32 @@ pub fn run(options: Options) -> Result<()> {
         options.top_p.is_finite() && options.top_p > 0. && options.top_p <= 1.,
         "top-p must be in (0,1]"
     );
+    if options.compare_mlp_r2 {
+        ensure!(
+            !options.compare && !options.compare_block_kernels,
+            "--compare-mlp-r2 cannot be used with --compare or --compare-block-kernels"
+        );
+        ensure!(
+            options.temperature == 0.,
+            "--compare-mlp-r2 requires --temperature 0"
+        );
+        ensure!(
+            options.block_size == 3,
+            "--compare-mlp-r2 requires --block-size 3"
+        );
+        ensure!(
+            !std::env::var("QWEN_METAL_REFERENCE").is_ok_and(|value| value == "1"),
+            "--compare-mlp-r2 requires QWEN_METAL_REFERENCE=0"
+        );
+        ensure!(
+            std::env::var("QWEN_METAL_GEMV").unwrap_or_else(|_| "aligned".into()) == "aligned",
+            "--compare-mlp-r2 requires QWEN_METAL_GEMV=aligned"
+        );
+        ensure!(
+            std::env::var("QWEN_METAL_METADATA").is_ok_and(|value| value == "bf16"),
+            "--compare-mlp-r2 requires QWEN_METAL_METADATA=bf16"
+        );
+    }
     if options.compare_block_kernels {
         ensure!(
             !options.compare,
@@ -540,6 +809,9 @@ pub fn run(options: Options) -> Result<()> {
         options.block_size,
     )?;
     let load_seconds = loaded.elapsed().as_secs_f64();
+    if options.compare_mlp_r2 {
+        return run_mlp_r2_comparison(&options, &prompts, workload, &mut engine, load_seconds);
+    }
     if options.compare_block_kernels {
         return run_block_comparison(&options, &prompts, workload, &mut engine, load_seconds);
     }
@@ -688,6 +960,150 @@ mod tests {
         )
         .unwrap()
     }
+    #[test]
+    fn mlp_r2_rotation_balances_positions_without_pooling_variants_or_warmups() {
+        for prompt in 0..5 {
+            for position in 0..3 {
+                let seen: Vec<_> = (1..=3)
+                    .map(|run| mlp_r2_variant_order(prompt, run)[position])
+                    .collect();
+                for variant in MLP_R2_VARIANTS {
+                    assert_eq!(seen.iter().filter(|&&v| v == variant).count(), 1);
+                }
+            }
+        }
+        assert_eq!(mlp_r2_variant_order(0, 0), mlp_r2_variant_order(0, 1));
+        let mut captures = Vec::new();
+        for (index, variant) in MLP_R2_VARIANTS.into_iter().enumerate() {
+            for (run, tokens, seconds) in [(0, 1000, 0.001), (1, 9, 1.), (2, 17, 3.)] {
+                let mut capture = row(
+                    variant.generation_mode(),
+                    run,
+                    tokens,
+                    seconds * (index + 1) as f64,
+                );
+                capture.variant = Some(variant);
+                captures.push(capture);
+            }
+        }
+        for (index, variant) in MLP_R2_VARIANTS.into_iter().enumerate() {
+            let summary =
+                summarize_variant(&captures, None, variant.generation_mode(), Some(variant));
+            assert_eq!(summary["measured_runs"], 2);
+            assert_eq!(summary["sustained_decode_tokens"], 24);
+            assert_eq!(
+                summary["weighted_sustained_decode_tokens_per_second"],
+                6. / (index + 1) as f64
+            );
+        }
+    }
+
+    #[test]
+    fn mlp_r2_goal_requires_every_prompt_sufficient_samples_and_all_ordinary_comparisons() {
+        let prompts = vec![
+            Prompt {
+                name: "one".into(),
+                prompt: "Example".into(),
+            },
+            Prompt {
+                name: "two".into(),
+                prompt: "Other".into(),
+            },
+        ];
+        let mut captures = Vec::new();
+        let mut comparisons = Vec::new();
+        for prompt in &prompts {
+            for run in 0..=3 {
+                let mut reference = row(Mode::SequentialTarget, run, 65, 4.);
+                reference.prompt_name = prompt.name.clone();
+                reference.variant = Some(BlockVariant::SequentialTarget);
+                for variant in [BlockVariant::LegacyBatched, BlockVariant::MlpR2Batched] {
+                    let mut capture = row(Mode::Mtp, run, 65, if run == 0 { 100. } else { 2. });
+                    capture.prompt_name = prompt.name.clone();
+                    capture.variant = Some(variant);
+                    comparisons.push(compare_greedy(&capture, &reference));
+                    captures.push(capture);
+                }
+                captures.push(reference);
+            }
+        }
+        let status = mlp_r2_goal_status(&captures, &prompts, 3, &comparisons, 1);
+        assert_eq!(status["goal_32_tps_confirmed"], true);
+        assert_eq!(status["candidate_applicable"], true);
+        let inapplicable = mlp_r2_goal_status(&captures, &prompts, 3, &comparisons, 0);
+        assert_eq!(inapplicable["candidate_applicable"], false);
+        assert_eq!(inapplicable["goal_32_tps_confirmed"], false);
+        assert_eq!(
+            inapplicable["all_candidate_prompt_medians_at_least_32_sustained_tps"],
+            true
+        );
+        assert_eq!(
+            status["minimum_sustained_decode_tokens_per_candidate_run"],
+            64
+        );
+        assert_eq!(
+            mlp_r2_goal_status(&captures, &prompts, 2, &comparisons, 1)["goal_32_tps_confirmed"],
+            false
+        );
+        // Warmup mismatches count even though warmup timings never enter medians.
+        comparisons[0]["token_ids_equal"] = json!(false);
+        assert_eq!(
+            mlp_r2_goal_status(&captures, &prompts, 3, &comparisons, 1)["goal_32_tps_confirmed"],
+            false
+        );
+        comparisons[0]["token_ids_equal"] = json!(true);
+        comparisons[0]["finish_reason_equal"] = json!(false);
+        assert_eq!(
+            mlp_r2_goal_status(&captures, &prompts, 3, &comparisons, 1)["goal_32_tps_confirmed"],
+            false
+        );
+        comparisons[0]["finish_reason_equal"] = json!(true);
+        comparisons[0]["output_text_equal"] = json!(false);
+        assert_eq!(
+            mlp_r2_goal_status(&captures, &prompts, 3, &comparisons, 1)["goal_32_tps_confirmed"],
+            false
+        );
+        comparisons[0]["output_text_equal"] = json!(true);
+        assert_eq!(
+            mlp_r2_goal_status(
+                &captures,
+                &prompts,
+                3,
+                &comparisons[..comparisons.len() - 1],
+                1
+            )["goal_32_tps_confirmed"],
+            false
+        );
+        let candidate = captures
+            .iter_mut()
+            .find(|c| c.variant == Some(BlockVariant::MlpR2Batched) && c.run == 1)
+            .unwrap();
+        candidate.sustained_decode_tokens = 63;
+        assert_eq!(
+            mlp_r2_goal_status(&captures, &prompts, 3, &comparisons, 1)["goal_32_tps_confirmed"],
+            false
+        );
+        let candidate = captures
+            .iter_mut()
+            .find(|c| c.variant == Some(BlockVariant::MlpR2Batched) && c.run == 1)
+            .unwrap();
+        candidate.sustained_decode_tokens = 64;
+        for capture in captures
+            .iter_mut()
+            .filter(|c| c.variant == Some(BlockVariant::MlpR2Batched) && c.prompt_name == "two")
+        {
+            capture.sustained_decode_tokens_per_second = Some(31.9);
+        }
+        assert_eq!(
+            mlp_r2_goal_status(&captures, &prompts, 3, &comparisons, 1)["goal_32_tps_confirmed"],
+            false
+        );
+        assert_eq!(
+            mlp_r2_goal_status(&captures, &[], 3, &[], 1)["goal_32_tps_confirmed"],
+            false
+        );
+    }
+
     #[test]
     fn summary_excludes_warmup_counts_actual_tokens_and_weights_elapsed_time() {
         let rows = vec![

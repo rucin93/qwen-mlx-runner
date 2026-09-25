@@ -1,5 +1,10 @@
 # M5 block-kernel comparison: shared unpacking causes the regression
 
+Follow-up: the [M5 row-tile sweep](m5-selective-r2.md) rejects the R8 candidate
+described below and supports testing R2 only for the two measured MLP shapes.
+Version 0.6.4 adds that opt-in model comparison. The M1 measurements below
+remain local primitive evidence and are not M5 speedups.
+
 The user's [complete 0.6.2 report](benchmarks/m5-pro-v0.6.2-kernel-comparison-user.json)
 compares four configurations in one process with one loaded target and MTP
 adapter. Its SHA-256 is

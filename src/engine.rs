@@ -445,6 +445,24 @@ impl Engine {
     pub fn block_kernel_mode(&self) -> crate::gpu::BlockKernelMode {
         self.gpu.block_kernel_mode()
     }
+    /// Number of loaded MLP matrices that the opt-in R2 schedule can use at B3.
+    /// Check actual compacted metadata, not the requested metadata environment:
+    /// weights whose metadata cannot be represented exactly remain FP32.
+    pub fn mlp_r2_eligible_matrices(&self) -> usize {
+        if self.gpu.kernel_mode() != "aligned" {
+            return 0;
+        }
+        self.layers
+            .iter()
+            .flat_map(|layer| [&layer.gate, &layer.up, &layer.down])
+            .filter(|matrix| {
+                matrix.metadata_bf16
+                    && matrix.bits == 4
+                    && matrix.group == 64
+                    && matches!((matrix.rows, matrix.cols), (17408, 5120) | (5120, 17408))
+            })
+            .count()
+    }
     /// Change a target-block schedule without reloading immutable weights.
     /// Require reset state so an A/B measurement never inherits a previous
     /// variant's recurrent or attention history, or a pending transaction.

@@ -157,27 +157,27 @@ inline float block_u16_dot16(ushort4 q, float4 a, float4 b, float4 c, float4 d) 
     return block_u16_dot4(q.x,a) + block_u16_dot4(q.y,b)
          + block_u16_dot4(q.z,c) + block_u16_dot4(q.w,d);
 }
-template<uint B, typename M>
+template<uint B, typename M, uint R = 4>
 inline void block_aligned_q4(device const ushort *w, device const M *scales,
                              device const M *bias, device const float *x,
                              device float *y, constant uint *p, uint gid, ushort lane) {
-    const int row = (int(gid) / 32) * 4;
+    const int row = (int(gid) / 32) * int(R);
     if (row >= int(p[0])) return;
     const int rows = int(p[0]), cols = int(p[1]);
     const int packed_stride = cols / 4, group_stride = cols / 64;
     const int tiles = cols / 512;
-    float totals[B][4];
+    float totals[B][R];
     #pragma unroll
     for (uint b = 0; b < B; ++b) {
         #pragma unroll
-        for (uint r = 0; r < 4; ++r) totals[b][r] = 0.0f;
+        for (uint r = 0; r < R; ++r) totals[b][r] = 0.0f;
     }
     for (int tile = 0; tile < tiles; ++tile) {
         const int col = tile * 512 + int(lane) * 16;
-        ushort4 packed[4];
-        float scale[4], offset[4];
+        ushort4 packed[R];
+        float scale[R], offset[R];
         #pragma unroll
-        for (int r = 0; r < 4; ++r) {
+        for (int r = 0; r < R; ++r) {
             packed[r] = *reinterpret_cast<device const ushort4 *>(w + (row + r) * packed_stride + col / 4);
             const int gi = (row + r) * group_stride + col / 64;
             scale[r] = block_metadata(scales[gi]);
@@ -195,7 +195,7 @@ inline void block_aligned_q4(device const ushort *w, device const M *scales,
             const float4 factors = float4(1.0f,0x1p-4f,0x1p-8f,0x1p-12f);
             const float4 xa = a * factors, xc1 = c1 * factors, xc2 = c2 * factors, xd = d * factors;
             #pragma unroll
-            for (uint r = 0; r < 4; ++r) {
+            for (uint r = 0; r < R; ++r) {
                 totals[b][r] += fma(scale[r], block_u16_dot16(packed[r],xa,xc1,xc2,xd), offset[r] * xsum);
             }
         }
@@ -203,7 +203,7 @@ inline void block_aligned_q4(device const ushort *w, device const M *scales,
     #pragma unroll
     for (uint b = 0; b < B; ++b) {
         #pragma unroll
-        for (uint r = 0; r < 4; ++r) {
+        for (uint r = 0; r < R; ++r) {
             const float total = simd_sum(totals[b][r]);
             if (lane == 0) y[b * uint(rows) + uint(row) + r] = total;
         }
@@ -288,6 +288,15 @@ BLOCK_ALIGNED(matmul_q4_g64_b2_shared_aligned,2,float,block_aligned_q4_shared)
 BLOCK_ALIGNED(matmul_q4_g64_b2_shared_aligned_bf16,2,ushort,block_aligned_q4_shared)
 BLOCK_ALIGNED(matmul_q4_g64_b3_shared_aligned,3,float,block_aligned_q4_shared)
 BLOCK_ALIGNED(matmul_q4_g64_b3_shared_aligned_bf16,3,ushort,block_aligned_q4_shared)
+// R2/T64 retains the exact Legacy accumulation order for each output row.
+// Runtime routing permits only the two measured MLP shapes, B3 and BF16 metadata.
+kernel void matmul_q4_g64_b3_mlp_r2_aligned_bf16(
+    device const ushort *w [[buffer(0)]], device const ushort *s [[buffer(1)]],
+    device const ushort *bias [[buffer(2)]], device const float *x [[buffer(3)]],
+    device float *y [[buffer(4)]], constant uint *p [[buffer(15)]],
+    uint gid [[thread_position_in_grid]], ushort lane [[thread_index_in_simdgroup]]) {
+    block_aligned_q4<3,ushort,2>(w,s,bias,x,y,p,gid,lane);
+}
 #undef BLOCK_ALIGNED_BATCH
 #undef BLOCK_ALIGNED
 

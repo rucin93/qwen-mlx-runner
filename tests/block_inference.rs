@@ -6,14 +6,19 @@ use std::path::{Path, PathBuf};
 #[test]
 #[ignore = "requires a real Apple Metal GPU"]
 fn switching_block_kernels_requires_reset_and_preserves_all_prefixes() -> Result<()> {
-    use qwen_metal::gpu::BlockKernelMode;
+    use qwen_metal::gpu::{BlockKernelMode, BlockMatmulMode};
     let path = fixture("tiny-bf16");
     let mut reference = Engine::load(&path, 32)?;
     let mut engine = Engine::load(&path, 32)?;
-    for shared_matmul in [false, true] {
+    assert_eq!(engine.mlp_r2_eligible_matrices(), 0);
+    for matmul in [
+        BlockMatmulMode::Legacy,
+        BlockMatmulMode::Shared,
+        BlockMatmulMode::MlpR2,
+    ] {
         for batched_delta in [false, true] {
             let mode = BlockKernelMode {
-                shared_matmul,
+                matmul,
                 batched_delta,
             };
             for width in 1..=4 {
@@ -27,7 +32,11 @@ fn switching_block_kernels_requires_reset_and_preserves_all_prefixes() -> Result
                         reference.forward(token)?;
                     }
                     let other = BlockKernelMode {
-                        shared_matmul: !shared_matmul,
+                        matmul: if matmul == BlockMatmulMode::Legacy {
+                            BlockMatmulMode::Shared
+                        } else {
+                            BlockMatmulMode::Legacy
+                        },
                         batched_delta: !batched_delta,
                     };
                     assert!(engine.set_block_kernel_mode(other).is_err());
@@ -140,7 +149,7 @@ fn wider_key_dimension_fallback_preserves_every_rollback_prefix() -> Result<()> 
     let mut sequential = Engine::load(temporary.path(), 32)?;
     let mut block = Engine::load(temporary.path(), 32)?;
     block.set_block_kernel_mode(qwen_metal::gpu::BlockKernelMode {
-        shared_matmul: true,
+        matmul: qwen_metal::gpu::BlockMatmulMode::Shared,
         batched_delta: true,
     })?;
     let history = [5, 9, 13];

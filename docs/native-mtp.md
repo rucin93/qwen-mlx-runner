@@ -10,6 +10,10 @@ on the same M5 workload despite isolated M1 improvements. The subsequent
 shared matrix unpacking. Version 0.6.3 defaults to legacy matrices and batched
 DeltaNet: the combination measured at 28.53 sustained tokens/s over the two
 diagnostic prompts. The full five-prompt result for that combination is pending.
+Version 0.6.4 also offers the opt-in `QWEN_METAL_BLOCK_MATMUL=mlp-r2` path,
+restricted to the two B3 BF16 MLP shapes supported by the M5 microbenchmark.
+Use [`mtp-bench --compare-mlp-r2`](m5-selective-r2.md) to compare it with both
+legacy MTP and ordinary target generation on one loaded model.
 
 Every matrix pass in the measured target graph streams approximately 14.41 GB
 of Q4 weights and BF16 metadata. The [Apple M5 Pro specification](https://www.apple.com/macbook-pro/specs/)

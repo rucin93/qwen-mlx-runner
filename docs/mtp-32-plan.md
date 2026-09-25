@@ -16,6 +16,10 @@ DeltaNet win that two-prompt comparison at 28.5274 sustained tokens/s and become
 the 0.6.3 default. The memory saving from omitting unused final rollback
 snapshots is retained. The weaker Polish prompt still needs approximately 24%
 less target execution time to reach 32 at unchanged acceptance and other costs.
+The next M5 sweep rejects the R8 row tile that won on M1, while R2/T64 improves
+the two MLP shapes by about 1.08× and 1.18×. Version 0.6.4
+[integrates R2 selectively for a controlled full-model comparison](m5-selective-r2.md),
+leaving the vocabulary head, other batches/formats, and default path unchanged.
 The later block-4 report has Low Power Mode enabled and cannot be compared
 directly to the block-3 result with it disabled.
 
@@ -84,3 +88,23 @@ prompts; speculative acceptance is workload dependent.
 
 These sources document formats and algorithms. Implementation remains original
 Rust/Metal code; their inference runtimes are not linked or invoked.
+
+## Next architectural experiment if the scalar gap remains
+
+The selective R2 timing budget is too small by itself to justify promising 32
+tokens/s on the weaker prompt. A subsequent bounded experiment should evaluate
+Metal 4 TensorOps within our own shaders. Apple recommends this API for custom
+matrix workloads targeting M5's GPU Neural Accelerators, while noting that
+skinny decode matrices can remain bandwidth limited.
+[Apple M5 GPU guidance](https://developer.apple.com/videos/play/tech-talks/111432/).
+
+Apple also documents custom quantization and cooperative tensor inputs.
+[Metal tensor operations](https://developer.apple.com/videos/play/wwdc2026/330/).
+This offers a route for keeping the existing packed checkpoint and custom
+dequantization inside the Rust/Metal engine. It is not implemented in 0.6.4.
+FP32 operand support, successful compilation on the target OS/SDK, numerical
+error and actual B3 speed must be evaluated separately. A matrix primitive may
+change reduction order even with FP32 inputs; it cannot inherit the scalar
+kernel's bitwise-equality claim. No FP16 conversion or weight requantization
+should be treated as an invisible optimization. Retain the measured scalar
+fallback and validate real greedy traces before choosing any new path.

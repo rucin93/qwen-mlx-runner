@@ -53,6 +53,12 @@ it measures 28.53 sustained tokens/s, with medians of 25.59 for Polish explanati
 and 32.98 for code. This is a narrower workload than the earlier five-prompt
 result. See the [controlled comparison and remaining budget](docs/m5-kernel-comparison.md).
 
+The M5 row-tile sweep rejects the R8 candidate that had won on M1. It supports
+a narrower R2 candidate for B3 BF16 MLP matrices. Version 0.6.4 adds this as an
+**opt-in** path and a one-load comparison against both legacy MTP and ordinary
+target generation; the normal default remains legacy/batched. Full-model M5
+performance of this candidate is pending. See the [selective R2 results and command](docs/m5-selective-r2.md).
+
 Earlier results and implementation evidence remain in the
 [first iteration](docs/performance-2026-09-25.md),
 [v0.2 profiling](docs/performance-v0.2.md),

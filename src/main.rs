@@ -112,8 +112,11 @@ enum Command {
         #[arg(long)]
         compare: bool,
         /// Compare all four target block kernel configurations on one loaded model (greedy only).
-        #[arg(long, conflicts_with = "compare")]
+        #[arg(long, conflicts_with_all = ["compare", "compare_mlp_r2"])]
         compare_block_kernels: bool,
+        /// Compare selective MLP R2 with legacy MTP and ordinary target generation (greedy B3/BF16).
+        #[arg(long, conflicts_with_all = ["compare", "compare_block_kernels"])]
+        compare_mlp_r2: bool,
     },
     /// Fixed-token autoregressive benchmark; EOS is deliberately ignored.
     Bench {
@@ -197,6 +200,7 @@ fn main() -> Result<()> {
             thinking,
             compare,
             compare_block_kernels,
+            compare_mlp_r2,
         } => mtp_benchmark::run(mtp_benchmark::Options {
             model,
             mtp,
@@ -212,6 +216,7 @@ fn main() -> Result<()> {
             thinking,
             compare,
             compare_block_kernels,
+            compare_mlp_r2,
         })?,
         Command::Profile {
             model,
@@ -733,6 +738,26 @@ mod cli_tests {
                 assert_eq!(max_tokens, 256);
             }
             _ => panic!("wrong command"),
+        }
+    }
+
+    #[test]
+    fn mlp_r2_benchmark_cli_is_available_and_comparison_modes_are_exclusive() {
+        let base = [
+            "qwen-metal",
+            "mtp-bench",
+            "--model",
+            "target",
+            "--mtp",
+            "adapter",
+        ];
+        let mut args = base.to_vec();
+        args.push("--compare-mlp-r2");
+        assert!(Cli::try_parse_from(&args).is_ok());
+        for conflict in ["--compare", "--compare-block-kernels"] {
+            let mut conflicting = args.clone();
+            conflicting.push(conflict);
+            assert!(Cli::try_parse_from(conflicting).is_err());
         }
     }
 
