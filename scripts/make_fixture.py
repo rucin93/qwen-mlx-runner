@@ -174,6 +174,9 @@ Q4_ROOT = ROOT.parent / "tiny-q4"
 Q4_ROOT.mkdir(parents=True, exist_ok=True)
 q4_header = {}
 q4_body = bytearray()
+# Keep the original matrices so the BF16 variant is independently quantized
+# from the same F16 source, rather than quantizing already dequantized Q4 data.
+f16_weights = dict(weights)
 
 def q4_tensor(name, shape, dtype, data):
     q4_header[name] = {"dtype":dtype,"shape":shape,
@@ -247,3 +250,71 @@ q4_golden = {"tokens":ids,"logits":[forward(t,i) for i,t in enumerate(ids)],
              "description":"Scalar Python oracle for packed affine Q4, four-layer synthetic untrained hybrid"}
 (Q4_ROOT/"golden.json").write_text(json.dumps(q4_golden,indent=2)+"\n")
 print(f"Wrote {len(q4_body)} bytes of synthetic packed Q4 weights and {len(ids)} reference logit vectors to {Q4_ROOT}")
+
+# A third checkpoint has BF16 scale/bias tensors, matching the metadata dtype
+# used by some MLX-community checkpoints. Round to nearest, ties to even using
+# integer bits, then evaluate with the exact FP32 expansion of those BF16 bits.
+BF16_ROOT = ROOT.parent / "tiny-bf16"
+BF16_ROOT.mkdir(parents=True, exist_ok=True)
+bf16_header = {}
+bf16_body = bytearray()
+
+def bf16(value):
+    bits = struct.unpack("<I", struct.pack("<f", value))[0]
+    assert bits & 0x7f800000 != 0x7f800000  # This synthetic fixture is finite.
+    rounded = (bits + 0x7fff + ((bits >> 16) & 1)) >> 16
+    decoded = struct.unpack("<f", struct.pack("<I", rounded << 16))[0]
+    return rounded, decoded
+
+def bf16_tensor(name, shape, dtype, data):
+    bf16_header[name] = {"dtype":dtype,"shape":shape,
+                         "data_offsets":[len(bf16_body),len(bf16_body)+len(data)]}
+    bf16_body.extend(data)
+
+for name, original in f16_weights.items():
+    shape = shapes[name]
+    converted_name = mlx_name(name)
+    if len(shape) == 2:
+        rows, cols = shape
+        packed, scales, biases, dequantized = [], [], [], []
+        for row in range(rows):
+            for group_start in range(0, cols, 32):
+                group = original[row*cols+group_start:row*cols+group_start+32]
+                scale_bits, scale = bf16((max(group)-min(group))/15)
+                bias_bits, bias = bf16(min(group))
+                assert scale > 0
+                scales.append(scale_bits)
+                biases.append(bias_bits)
+                quantized = [min(15,max(0,round((v-bias)/scale))) for v in group]
+                dequantized.extend(q*scale+bias for q in quantized)
+                packed.extend(sum(q << (4*i) for i,q in enumerate(quantized[j:j+8]))
+                              for j in range(0,32,8))
+        weights[name] = dequantized
+        module = converted_name.removesuffix(".weight")
+        groups = cols//32
+        bf16_tensor(converted_name,[rows,cols//8],"U32",
+                    struct.pack("<"+"I"*len(packed),*packed))
+        bf16_tensor(module+".scales",[rows,groups],"BF16",
+                    struct.pack("<"+"H"*len(scales),*scales))
+        bf16_tensor(module+".biases",[rows,groups],"BF16",
+                    struct.pack("<"+"H"*len(biases),*biases))
+    else:
+        # Reuse the exact converted MLX norm/conv payload from tiny-q4.
+        entry = q4_header[converted_name]
+        start, end = entry["data_offsets"]
+        bf16_tensor(converted_name,entry["shape"],entry["dtype"],q4_body[start:end])
+
+bf16_hdr = json.dumps(bf16_header,separators=(",",":")).encode()
+bf16_hdr += b" "*((-len(bf16_hdr))%8)
+(BF16_ROOT/"model.safetensors").write_bytes(struct.pack("<Q",len(bf16_hdr))+bf16_hdr+bf16_body)
+(BF16_ROOT/"config.json").write_text(json.dumps(q4_config,indent=2)+"\n")
+for filename in ("tokenizer.json","chat_template.jinja"):
+    (BF16_ROOT/filename).write_bytes((ROOT/filename).read_bytes())
+
+conv = [[[0.]*3 for _ in range(2*KH*K+VH*V)] for _ in range(3)]
+state = [[[[0.]*K for _ in range(V)] for _ in range(VH)] for _ in range(3)]
+keys, values = [], []
+bf16_golden = {"tokens":ids,"logits":[forward(t,i) for i,t in enumerate(ids)],
+               "description":"Scalar Python oracle for packed affine Q4 with BF16 metadata, four-layer synthetic untrained hybrid"}
+(BF16_ROOT/"golden.json").write_text(json.dumps(bf16_golden,indent=2)+"\n")
+print(f"Wrote {len(bf16_body)} bytes of synthetic packed Q4 weights with BF16 metadata and {len(ids)} reference logit vectors to {BF16_ROOT}")

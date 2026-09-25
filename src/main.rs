@@ -1,5 +1,5 @@
 use anyhow::{Context, Result, ensure};
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use qwen_metal::{
     chat::{GenerationRequest, Message, Sampler, TextGenerator},
     engine::{ChatEngine, Engine},
@@ -22,6 +22,12 @@ use std::{
 struct Cli {
     #[command(subcommand)]
     command: Command,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum ProfileBackend {
+    Auto,
+    Commands,
 }
 
 #[derive(Subcommand)]
@@ -97,6 +103,9 @@ enum Command {
         /// Compare serial and parallel RMS using one load and one prefill.
         #[arg(long)]
         compare_norm: bool,
+        /// Commands avoids hardware counter sampling on drivers returning zero samples.
+        #[arg(long, value_enum, default_value_t = ProfileBackend::Auto)]
+        profile_backend: ProfileBackend,
     },
     /// Measure a packed matrix-vector kernel, not LLM tokens/s.
     KernelBench {
@@ -113,6 +122,9 @@ enum Command {
         /// Use the original unspecialized kernel for A/B comparison.
         #[arg(long)]
         reference: bool,
+        /// Store exactly representable scale/bias values in BF16 (not rounded weights).
+        #[arg(long)]
+        bf16_metadata: bool,
     },
 }
 
@@ -124,10 +136,11 @@ fn main() -> Result<()> {
             context,
             history,
             compare_norm,
+            profile_backend,
         } => {
             ensure!(
                 history
-                    .checked_add(if compare_norm { 6 } else { 3 })
+                    .checked_add(if compare_norm { 8 } else { 4 })
                     .is_some_and(|n| n <= context),
                 "history plus warmup and two diagnostic steps must fit context"
             );
@@ -149,20 +162,27 @@ fn main() -> Result<()> {
                 );
                 for parallel in [false, true] {
                     engine.set_parallel_norm(parallel);
-                    captures.push(profile_step(&mut engine)?);
+                    let capture = profile_step(&mut engine, profile_backend)?;
+                    let aborted = capture["profile_execution_failed"].as_bool() == Some(true);
+                    captures.push(capture);
+                    if aborted {
+                        break;
+                    }
                 }
             } else {
-                captures.push(profile_step(&mut engine)?);
+                captures.push(profile_step(&mut engine, profile_backend)?);
             }
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({
                     "kind":"gpu_operation_profile", "device":engine.device_name(),
                     "engine_version":env!("CARGO_PKG_VERSION"), "model_path":model,
+                    "metadata_mode":engine.metadata_mode(),
+                    "compacted_matrices":engine.metadata_stats().0, "metadata_saved_bytes":engine.metadata_stats().1,
                     "context_capacity":context, "compare_norm":compare_norm,
                     "synthetic_reused_weights":model.is_none(),
                     "captures":captures,
-                    "note":"Diagnostic only: one encoder per dispatch changes scheduling; not normal model throughput. Without --model, reused synthetic weights and zeroed historical KV."
+                    "note":"Diagnostic only: counters use one encoder per operation; commands use one synchronous command buffer per operation. Both change scheduling and are not normal model throughput. Without --model, reused synthetic weights and zeroed historical KV."
                 }))?
             );
         }
@@ -339,6 +359,7 @@ fn main() -> Result<()> {
                 "{}",
                 serde_json::to_string_pretty(&json!({"kind":"model_fixed_token_benchmark",
                 "engine_version":env!("CARGO_PKG_VERSION"),"model_path":model,"device":engine.device_name(),"kernel_mode":engine.kernel_mode(),"norm_mode":engine.norm_mode(),
+                "metadata_mode":engine.metadata_mode(),"compacted_matrices":engine.metadata_stats().0,"metadata_saved_bytes":engine.metadata_stats().1,
                 "allocated_bytes":engine.allocated_bytes(),"context_capacity":context,"prompt_tokens":prompt_tokens,
                 "generated_steps":generate_tokens,"load_seconds":load_seconds,"median_decode_tokens_per_second":median,
                 "notes":"one unreported warmup; no prompt cache reuse; greedy; fixed tokens; EOS ignored; not a chat quality evaluation",
@@ -352,7 +373,12 @@ fn main() -> Result<()> {
             bits,
             group,
             reference,
+            bf16_metadata,
         } => {
+            ensure!(
+                !reference || !bf16_metadata,
+                "--reference requires FP32 metadata"
+            );
             ensure!(
                 matches!(bits, 4 | 8) && matches!(group, 32 | 64 | 128),
                 "bits must be 4 or 8, group 32/64/128"
@@ -374,8 +400,19 @@ fn main() -> Result<()> {
                 let g = Gpu::new_with_reference(reference)?;
                 let packed = vec![0x76543210u32; elements / (32 / bits as usize)];
                 let w = g.upload_bytes(bytemuck::cast_slice(&packed))?;
-                let scale = g.upload_f32(&vec![0.01; elements / group])?;
-                let bias = g.upload_f32(&vec![-0.07; elements / group])?;
+                // Identical, exactly BF16-representable values in both storage modes.
+                let scale_values = vec![0.015625f32; elements / group];
+                let bias_values = vec![-0.0625f32; elements / group];
+                let (scale, bias) = if bf16_metadata {
+                    let s = qwen_metal::gpu::pack_bf16_exact(&scale_values).unwrap();
+                    let b = qwen_metal::gpu::pack_bf16_exact(&bias_values).unwrap();
+                    (
+                        g.upload_bytes(bytemuck::cast_slice(&s))?,
+                        g.upload_bytes(bytemuck::cast_slice(&b))?,
+                    )
+                } else {
+                    (g.upload_f32(&scale_values)?, g.upload_f32(&bias_values)?)
+                };
                 let x = g.upload_f32(&vec![0.1; cols])?;
                 let y = g.alloc_f32(rows)?;
                 let dispatch = |count: usize| -> Result<f64> {
@@ -385,7 +422,11 @@ fn main() -> Result<()> {
                     for _ in 0..count {
                         g.encode(
                             e,
-                            "matvec_affine",
+                            if bf16_metadata {
+                                "matvec_affine_bf16"
+                            } else {
+                                "matvec_affine"
+                            },
                             &[&w, &scale, &bias, &x, &y],
                             &[rows as u32, cols as u32, bits, group as u32],
                             rows * 32,
@@ -407,6 +448,8 @@ fn main() -> Result<()> {
                     "{}",
                     serde_json::to_string_pretty(
                         &json!({"kind":"packed_matvec_microbenchmark", "bits":bits,"group_size":group,"kernel_mode":g.kernel_mode(),
+                    "metadata_mode":if bf16_metadata {"bf16"} else {"f32"},
+                    "synthetic_metadata_values":{"scale":0.015625,"bias":-0.0625},
                     "device":g.device.name(),"rows":rows,"cols":cols,"iterations":iterations,"seconds":seconds,
                     "milliseconds_per_matvec":seconds*1000./iterations as f64,
                     "effective_weight_gb_per_second":(w.length()+scale.length()+bias.length()) as f64*iterations as f64/seconds/1e9,
@@ -420,7 +463,7 @@ fn main() -> Result<()> {
     Ok(())
 }
 
-fn profile_step(engine: &mut Engine) -> Result<serde_json::Value> {
+fn profile_step(engine: &mut Engine, backend: ProfileBackend) -> Result<serde_json::Value> {
     engine.disable_profiling();
     let token = (3 % engine.config().vocab_size) as u32;
     engine.forward(token)?;
@@ -428,21 +471,56 @@ fn profile_step(engine: &mut Engine) -> Result<serde_json::Value> {
     let normal_start = Instant::now();
     engine.forward(token)?;
     let normal_wall_seconds = normal_start.elapsed().as_secs_f64();
-    let normal_timing = engine
-        .last_frame_timing()
-        .context("Command GPU timestamps are unavailable")?;
-    engine.enable_profiling()?;
-    let profile_history = engine.position();
-    let start = Instant::now();
-    engine.forward(token)?;
-    let seconds = start.elapsed().as_secs_f64();
-    let rows = engine.profile_report()?;
+    let normal_timing = engine.last_frame_timing();
+    let mut counter_error = None;
+    match backend {
+        ProfileBackend::Commands => engine.enable_command_profiling()?,
+        ProfileBackend::Auto => {
+            if let Err(error) = engine.enable_profiling() {
+                counter_error = Some(error.to_string());
+                engine.enable_command_profiling()?;
+            }
+        }
+    }
+    let mut profile_history = engine.position();
+    let mut start = Instant::now();
+    let mut execution_failed = false;
+    let mut report = match engine.forward(token) {
+        Ok(_) => engine.profile_report(),
+        Err(error) => {
+            execution_failed = true;
+            Err(error)
+        }
+    };
+    let mut seconds = start.elapsed().as_secs_f64();
+    if !execution_failed && report.is_err() && engine.profile_backend() != Some("command_buffers") {
+        counter_error = report.as_ref().err().map(ToString::to_string);
+        engine.enable_command_profiling()?;
+        profile_history = engine.position();
+        start = Instant::now();
+        report = match engine.forward(token) {
+            Ok(_) => engine.profile_report(),
+            Err(error) => {
+                execution_failed = true;
+                Err(error)
+            }
+        };
+        seconds = start.elapsed().as_secs_f64();
+    }
+    // Preserve normal-command timings even if the diagnostic backend fails.
+    // Missing samples are never converted to zero-duration operations.
+    let profile_error = report.as_ref().err().map(ToString::to_string);
+    let rows = report.ok();
     Ok(json!({
         "kernel_mode":engine.kernel_mode(), "norm_mode":engine.norm_mode(),
+        "profile_backend":engine.profile_backend(), "counter_error":counter_error, "profile_error":profile_error,
+        "profile_execution_failed":execution_failed,
         "normal_step_history":normal_history, "profiled_step_history":profile_history,
         "wall_seconds":seconds, "normal_wall_seconds":normal_wall_seconds,
-        "normal_timing":normal_timing, "profiled_timing":engine.last_frame_timing(),
-        "summed_kernel_seconds":rows.iter().map(|r| r.gpu_seconds).sum::<f64>(),
+        "normal_timing":normal_timing,
+        "normal_timing_error":if normal_timing.is_none() {Some("Metal command timestamps unavailable")} else {None},
+        "profiled_timing":if engine.profile_backend()==Some("command_buffers") {None} else {engine.last_frame_timing()},
+        "summed_kernel_seconds":rows.as_ref().map(|rows| rows.iter().map(|r| r.gpu_seconds).sum::<f64>()),
         "operations":rows
     }))
 }

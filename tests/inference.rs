@@ -2,14 +2,14 @@ use qwen_metal::engine::Engine;
 use std::path::Path;
 
 #[test]
-#[ignore = "requires a real Apple Metal GPU with timestamp counters"]
+#[ignore = "requires a real Apple Metal GPU"]
 fn profiling_preserves_logits_and_resets_samples_between_tokens() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-q4");
     let gold: serde_json::Value =
         serde_json::from_str(&std::fs::read_to_string(path.join("golden.json")).unwrap()).unwrap();
     let mut model = Engine::load(&path, 8).unwrap();
     assert!(model.profile_report().is_err());
-    model.enable_profiling().unwrap();
+    model.enable_command_profiling().unwrap();
     assert!(model.profile_report().is_err());
     let mut previous_count = None;
     for (i, token) in gold["tokens"].as_array().unwrap().iter().enumerate() {
@@ -19,13 +19,15 @@ fn profiling_preserves_logits_and_resets_samples_between_tokens() {
             assert!((got - want).abs() < 2e-3 + 2e-3 * want.abs());
         }
         let rows = model.profile_report().unwrap();
+        assert_eq!(model.profile_backend(), Some("command_buffers"));
+        assert!(rows.iter().all(|r| r.raw_gpu_ticks.is_none()));
         let count: usize = rows.iter().map(|r| r.dispatches).sum();
         assert!(count > 0 && rows.iter().any(|r| r.gpu_nanoseconds > 0));
         if let Some(previous) = previous_count {
             assert_eq!(count, previous);
         }
         previous_count = Some(count);
-        assert!(rows.iter().any(|r| r.kernel == "matvec_affine"));
+        assert!(rows.iter().any(|r| r.kernel.starts_with("matvec_affine")));
     }
 }
 

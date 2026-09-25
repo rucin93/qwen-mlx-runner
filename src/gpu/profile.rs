@@ -1,15 +1,19 @@
 //! Opt-in diagnostic timings. A separate compute pass per dispatch changes
 //! scheduling, so these timings must not be presented as normal inference speed.
+//! The command-buffer fallback also waits after each dispatch and measures the
+//! whole GPU command interval, which includes scheduling overhead.
 
 use anyhow::{Context, Result, anyhow, ensure};
 use metal::{
-    Buffer, CommandBuffer, CommandBufferRef, ComputeCommandEncoderRef, ComputePassDescriptor,
-    CounterSampleBuffer, CounterSampleBufferDescriptor, Device, DeviceRef, MTLCommandBufferStatus,
-    MTLCounterSamplingPoint, MTLDispatchType, MTLResourceOptions, MTLStorageMode, NSRange,
+    Buffer, CommandBuffer, CommandBufferRef, CommandQueue, ComputeCommandEncoderRef,
+    ComputePassDescriptor, CounterSampleBuffer, CounterSampleBufferDescriptor, Device, DeviceRef,
+    MTLCommandBufferStatus, MTLCounterSamplingPoint, MTLDispatchType, MTLResourceOptions,
+    MTLStorageMode, NSRange,
 };
 use serde::Serialize;
 use std::cell::{Cell, RefCell};
 use std::collections::BTreeMap;
+use std::time::Instant;
 
 // A Qwen 27B step has fewer than 1,200 dispatches, each using two timestamps.
 const MAX_SAMPLES: usize = 4096;
@@ -20,7 +24,7 @@ pub struct ProfileRow {
     pub kernel: String,
     pub parameters: Vec<u32>,
     pub dispatches: usize,
-    pub raw_gpu_ticks: u64,
+    pub raw_gpu_ticks: Option<u64>,
     /// Calibrated CPU nanoseconds, rounded to the nearest integer.
     pub gpu_nanoseconds: u64,
     pub gpu_seconds: f64,
@@ -80,8 +84,13 @@ impl ClockCalibration {
 
 pub struct StageProfiler {
     device: Device,
-    samples: CounterSampleBuffer,
-    results: Buffer,
+    samples: Option<CounterSampleBuffer>,
+    results: Option<Buffer>,
+    command_queue: Option<CommandQueue>,
+    dispatch_command: RefCell<Option<CommandBuffer>>,
+    dispatch_seconds: RefCell<Vec<Option<f64>>>,
+    timing_error: RefCell<Option<String>>,
+    aborted: Cell<bool>,
     entries: RefCell<Vec<Entry>>,
     resolved_samples: Cell<Option<usize>>,
     // Retaining the last command allows report() to reject a premature CPU read.
@@ -116,14 +125,49 @@ impl StageProfiler {
         results.set_label("qwen resolved diagnostic timestamps");
         Ok(Self {
             device: device.to_owned(),
-            samples,
-            results,
+            samples: Some(samples),
+            results: Some(results),
+            command_queue: None,
+            dispatch_command: RefCell::new(None),
+            dispatch_seconds: RefCell::new(Vec::new()),
+            timing_error: RefCell::new(None),
+            aborted: Cell::new(false),
             entries: RefCell::new(Vec::new()),
             resolved_samples: Cell::new(None),
             resolved_command: RefCell::new(None),
             start_pair: Cell::new(None),
             calibration: Cell::new(None),
         })
+    }
+
+    /// Counter-free diagnostic fallback. Each operation runs in its own command
+    /// buffer with a completion wait, so it must never be used for throughput.
+    pub fn new_command_timing(device: &DeviceRef) -> Result<Self> {
+        let queue = device.new_command_queue();
+        queue.set_label("qwen diagnostic per-dispatch command timing");
+        Ok(Self {
+            device: device.to_owned(),
+            samples: None,
+            results: None,
+            command_queue: Some(queue),
+            dispatch_command: RefCell::new(None),
+            dispatch_seconds: RefCell::new(Vec::new()),
+            timing_error: RefCell::new(None),
+            aborted: Cell::new(false),
+            entries: RefCell::new(Vec::new()),
+            resolved_samples: Cell::new(None),
+            resolved_command: RefCell::new(None),
+            start_pair: Cell::new(None),
+            calibration: Cell::new(None),
+        })
+    }
+
+    pub fn backend_name(&self) -> &'static str {
+        if self.command_queue.is_some() {
+            "command_buffers"
+        } else {
+            "stage_counters"
+        }
     }
 
     /// Begin a new diagnostic frame after the previous command has completed.
@@ -134,16 +178,24 @@ impl StageProfiler {
         self.resolved_samples.set(None);
         self.start_pair.set(None);
         self.calibration.set(None);
+        self.dispatch_command.borrow_mut().take();
+        self.dispatch_seconds.borrow_mut().clear();
+        self.timing_error.borrow_mut().take();
+        self.aborted.set(false);
     }
 
-    /// The caller must end this encoder before requesting the next one. All
-    /// encoders and resolve() belong to the same command buffer for this frame.
+    /// End this encoder and call finish_dispatch() before requesting another.
+    /// Counter mode uses the supplied command; fallback mode uses its own queue.
     pub fn encoder<'a>(
-        &self,
+        &'a self,
         command: &'a CommandBufferRef,
         name: &str,
         parameters: &[u32],
     ) -> Result<&'a ComputeCommandEncoderRef> {
+        ensure!(
+            !self.aborted.get(),
+            "Profiled frame was aborted; reset before retrying"
+        );
         ensure!(
             self.resolved_samples.get().is_none(),
             "Reset the stage profiler before encoding another frame"
@@ -167,6 +219,26 @@ impl StageProfiler {
             "Stage profiler capacity exceeded: at most {} dispatches per frame",
             MAX_SAMPLES / 2
         );
+        if let Some(queue) = &self.command_queue {
+            ensure!(
+                self.dispatch_command.borrow().is_none(),
+                "Previous profiled dispatch has not finished"
+            );
+            ensure!(
+                entries.len() == self.dispatch_seconds.borrow().len(),
+                "Previous profiled dispatch has no GPU timing"
+            );
+            let dispatch = queue.new_command_buffer();
+            dispatch.set_label(name);
+            *self.dispatch_command.borrow_mut() = Some(dispatch.to_owned());
+            let encoder = dispatch.new_compute_command_encoder();
+            encoder.set_label(name);
+            entries.push(Entry {
+                kernel: name.to_owned(),
+                parameters: parameters.to_vec(),
+            });
+            return Ok(encoder);
+        }
         if self.start_pair.get().is_none() {
             self.start_pair.set(Some(self.sample_clocks()));
         }
@@ -176,7 +248,11 @@ impl StageProfiler {
             .sample_buffer_attachments()
             .object_at(0)
             .context("Metal did not provide a compute-pass counter attachment")?;
-        attachment.set_sample_buffer(&self.samples);
+        attachment.set_sample_buffer(
+            self.samples
+                .as_ref()
+                .context("Missing counter sample buffer")?,
+        );
         attachment.set_start_of_encoder_sample_index(sample_index as u64);
         attachment.set_end_of_encoder_sample_index((sample_index + 1) as u64);
         let encoder = command.compute_command_encoder_with_descriptor(descriptor);
@@ -188,23 +264,105 @@ impl StageProfiler {
         Ok(encoder)
     }
 
+    /// The caller has already ended the compute encoder. Counter mode defers
+    /// execution to the parent command; fallback mode completes this operation.
+    pub fn finish_dispatch(&self) -> Result<()> {
+        if self.command_queue.is_none() {
+            return Ok(());
+        }
+        let result = (|| {
+            ensure!(!self.aborted.get(), "Profiled frame was aborted");
+            let command = self
+                .dispatch_command
+                .borrow_mut()
+                .take()
+                .context("No profiled dispatch to finish")?;
+            ensure!(
+                self.entries.borrow().len() == self.dispatch_seconds.borrow().len() + 1,
+                "Profiled dispatch/timing count mismatch"
+            );
+            let commit_started = Instant::now();
+            command.commit();
+            let commit_seconds = commit_started.elapsed().as_secs_f64();
+            let wait_started = Instant::now();
+            command.wait_until_completed();
+            let wait_seconds = wait_started.elapsed().as_secs_f64();
+            ensure!(
+                command.status() == MTLCommandBufferStatus::Completed,
+                "Profiled GPU dispatch failed with status {:?}",
+                command.status()
+            );
+            // A completed dispatch has updated the model state even when the
+            // driver omits its timestamps. Finish the graph in that case and
+            // reject the entire report afterwards; never invent a zero timing.
+            match super::timing::command_timing(&command, 0.0, commit_seconds, wait_seconds) {
+                Ok(timing) => self
+                    .dispatch_seconds
+                    .borrow_mut()
+                    .push(Some(timing.gpu_seconds)),
+                Err(error) => {
+                    self.dispatch_seconds.borrow_mut().push(None);
+                    let mut first_error = self.timing_error.borrow_mut();
+                    if first_error.is_none() {
+                        let entries = self.entries.borrow();
+                        let kernel = entries
+                            .last()
+                            .map(|entry| entry.kernel.as_str())
+                            .unwrap_or("unknown");
+                        *first_error =
+                            Some(format!("GPU timing unavailable for {kernel}: {error:#}"));
+                    }
+                }
+            }
+            Ok(())
+        })();
+        if result.is_err() {
+            self.aborted.set(true);
+        }
+        result
+    }
+
+    /// Call after ending an encoder whose dispatch validation failed. No
+    /// uncommitted fallback operation is submitted, and partial reports fail.
+    pub fn abort_dispatch(&self) {
+        self.dispatch_command.borrow_mut().take();
+        self.aborted.set(true);
+    }
+
     /// Encode resolution after all compute encoders have ended, before commit.
     /// It neither commits the command nor waits for the GPU.
     pub fn resolve(&self, command: &CommandBufferRef) -> Result<()> {
+        ensure!(
+            !self.aborted.get(),
+            "Cannot resolve an aborted profiled frame"
+        );
         ensure!(
             self.resolved_samples.get().is_none(),
             "Stage profiler timestamps have already been resolved for this frame"
         );
         let count = self.entries.borrow().len() * 2;
-        if count != 0 {
+        if self.command_queue.is_some() {
+            ensure!(
+                self.dispatch_command.borrow().is_none(),
+                "Profiled dispatch is still pending"
+            );
+            ensure!(
+                self.dispatch_seconds.borrow().len() * 2 == count,
+                "Profiled dispatch/timing count mismatch"
+            );
+        } else if count != 0 {
             let blit = command.new_blit_command_encoder();
             blit.set_label("resolve qwen diagnostic timestamps");
             // metal 0.32's CPU resolve_counter_range wrapper copies zero bytes
             // into an uninitialized Vec. Use Metal's GPU resolution API instead.
             blit.resolve_counters(
-                &self.samples,
+                self.samples
+                    .as_ref()
+                    .context("Missing counter sample buffer")?,
                 NSRange::new(0, count as u64),
-                &self.results,
+                self.results
+                    .as_ref()
+                    .context("Missing counter result buffer")?,
                 0,
             );
             blit.end_encoding();
@@ -222,6 +380,10 @@ impl StageProfiler {
 
     /// Read only after the caller has committed and completed the GPU command.
     pub fn report(&self) -> Result<Vec<ProfileRow>> {
+        ensure!(
+            !self.aborted.get(),
+            "Cannot report an aborted profiled frame"
+        );
         let count = self
             .resolved_samples
             .get()
@@ -241,6 +403,12 @@ impl StageProfiler {
         );
         if entries.is_empty() {
             return Ok(Vec::new());
+        }
+        if self.command_queue.is_some() {
+            if let Some(error) = self.timing_error.borrow().as_ref() {
+                anyhow::bail!("Incomplete command-buffer profile: {error}");
+            }
+            return aggregate_commands(&entries, &self.dispatch_seconds.borrow());
         }
         let calibration = match self.calibration.get() {
             Some(calibration) => calibration,
@@ -262,8 +430,12 @@ impl StageProfiler {
         };
         // This Shared buffer is written only by the completed resolve command.
         // Metal aligns buffer contents adequately for u64 counter results.
+        let results = self
+            .results
+            .as_ref()
+            .context("Missing counter result buffer")?;
         let timestamps =
-            unsafe { std::slice::from_raw_parts(self.results.contents().cast::<u64>(), count) };
+            unsafe { std::slice::from_raw_parts(results.contents().cast::<u64>(), count) };
         aggregate(&entries, timestamps, calibration)
     }
 }
@@ -304,7 +476,7 @@ fn aggregate(
                 kernel,
                 parameters,
                 dispatches,
-                raw_gpu_ticks: total,
+                raw_gpu_ticks: Some(total),
                 gpu_nanoseconds: calibration.nanoseconds(total)?,
                 gpu_seconds: nanoseconds / 1e9,
                 mean_gpu_microseconds: nanoseconds / dispatches as f64 / 1e3,
@@ -313,6 +485,51 @@ fn aggregate(
         })
         .collect::<Result<_>>()?;
     rows.sort_by(|a, b| b.raw_gpu_ticks.cmp(&a.raw_gpu_ticks));
+    Ok(rows)
+}
+
+fn aggregate_commands(entries: &[Entry], seconds: &[Option<f64>]) -> Result<Vec<ProfileRow>> {
+    ensure!(
+        entries.len() == seconds.len(),
+        "Profiled dispatch/timing count mismatch"
+    );
+    let mut grouped: BTreeMap<(String, Vec<u32>), (usize, f64, f64)> = BTreeMap::new();
+    for (entry, &duration) in entries.iter().zip(seconds) {
+        let duration = duration
+            .with_context(|| format!("Missing command-buffer GPU duration for {}", entry.kernel))?;
+        ensure!(
+            duration.is_finite() && duration > 0.0,
+            "Invalid command-buffer GPU duration for {}: {duration}",
+            entry.kernel
+        );
+        let row = grouped
+            .entry((entry.kernel.clone(), entry.parameters.clone()))
+            .or_default();
+        row.0 += 1;
+        row.1 += duration;
+        row.2 = row.2.max(duration);
+    }
+    let mut rows: Vec<_> = grouped
+        .into_iter()
+        .map(|((kernel, parameters), (dispatches, total, maximum))| {
+            let nanoseconds = total * 1e9;
+            ensure!(
+                nanoseconds.is_finite() && nanoseconds.round() < u64::MAX as f64,
+                "Command-buffer GPU duration exceeds u64 nanoseconds"
+            );
+            Ok(ProfileRow {
+                kernel,
+                parameters,
+                dispatches,
+                raw_gpu_ticks: None,
+                gpu_nanoseconds: nanoseconds.round() as u64,
+                gpu_seconds: total,
+                mean_gpu_microseconds: total / dispatches as f64 * 1e6,
+                max_gpu_microseconds: maximum * 1e6,
+            })
+        })
+        .collect::<Result<_>>()?;
+    rows.sort_by(|a, b| b.gpu_seconds.total_cmp(&a.gpu_seconds));
     Ok(rows)
 }
 
@@ -382,7 +599,7 @@ mod tests {
             calibration,
         )
         .unwrap();
-        assert_eq!(rows[0].raw_gpu_ticks, 1500);
+        assert_eq!(rows[0].raw_gpu_ticks, Some(1500));
         assert_eq!(rows[0].gpu_nanoseconds, 2250);
         assert_eq!(rows[0].gpu_seconds, 2250.0 / 1e9);
         assert_eq!(rows[0].mean_gpu_microseconds, 1.125);
@@ -441,5 +658,41 @@ mod tests {
         assert_eq!(fractional.nanoseconds(1).unwrap(), 0);
         assert_eq!(fractional.nanoseconds(2).unwrap(), 1);
         assert_eq!(fractional.fractional_nanoseconds(1), 1.0 / 3.0);
+    }
+
+    #[test]
+    fn command_buffer_seconds_are_grouped_without_fabricated_ticks() {
+        let entries = [
+            entry("gemv", &[16, 32]),
+            entry("gemv", &[16, 32]),
+            entry("norm", &[32]),
+        ];
+        let rows = aggregate_commands(&entries, &[Some(0.001), Some(0.003), Some(0.0005)]).unwrap();
+        assert_eq!(rows.len(), 2);
+        assert_eq!(rows[0].kernel, "gemv");
+        assert_eq!(rows[0].dispatches, 2);
+        assert_eq!(rows[0].raw_gpu_ticks, None);
+        assert_eq!(rows[0].gpu_nanoseconds, 4_000_000);
+        assert_eq!(rows[0].gpu_seconds, 0.004);
+        assert_eq!(rows[0].mean_gpu_microseconds, 2000.0);
+        assert_eq!(rows[0].max_gpu_microseconds, 3000.0);
+    }
+
+    #[test]
+    fn command_buffer_timings_reject_missing_invalid_or_overflowing_durations() {
+        let entries = [entry("test", &[])];
+        for duration in [0.0, -1.0, f64::NAN, f64::INFINITY, f64::MAX] {
+            assert!(aggregate_commands(&entries, &[Some(duration)]).is_err());
+        }
+        assert!(aggregate_commands(&entries, &[None]).is_err());
+        assert!(
+            aggregate_commands(
+                &[entry("valid", &[]), entry("missing", &[])],
+                &[Some(0.001), None],
+            )
+            .is_err()
+        );
+        assert!(aggregate_commands(&entries, &[]).is_err());
+        assert!(aggregate_commands(&[], &[]).unwrap().is_empty());
     }
 }

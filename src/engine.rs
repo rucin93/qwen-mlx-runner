@@ -20,11 +20,25 @@ struct Matrix {
     cols: usize,
     bits: u32,
     group: usize,
+    metadata_bf16: bool,
 }
 
 impl Matrix {
     fn load(cp: &Checkpoint, gpu: &Gpu, name: &str, rows: usize, cols: usize) -> Result<Self> {
         let data = cp.matrix(name).with_context(|| format!("loading {name}"))?;
+        let compacted = match &data {
+            MatrixData::Packed {
+                bits,
+                group_size,
+                scales,
+                biases,
+                ..
+            } => gpu.compact_metadata(*bits, *group_size, scales, biases),
+            MatrixData::Dense { .. } => None,
+        };
+        let saved_bytes = compacted
+            .as_ref()
+            .map_or(0, |(s, b)| (s.len() + b.len()) as u64 * 2);
         let (r, c, bytes) = match &data {
             MatrixData::Dense { rows, cols, values } => (*rows, *cols, values.len() * 2),
             MatrixData::Packed {
@@ -37,7 +51,7 @@ impl Matrix {
             } => (
                 *rows,
                 *cols,
-                (weights.len() + scales.len() + biases.len()) * 4,
+                (weights.len() + scales.len() + biases.len()) * 4 - saved_bytes as usize,
             ),
         };
         ensure!(
@@ -62,6 +76,7 @@ impl Matrix {
                 cols,
                 bits: 16,
                 group: 0,
+                metadata_bf16: false,
             }),
             MatrixData::Packed {
                 weights,
@@ -70,22 +85,42 @@ impl Matrix {
                 bits,
                 group_size,
                 ..
-            } => Ok(Self {
-                weight: gpu.upload_bytes(bytemuck::cast_slice(&weights))?,
-                scales: Some(gpu.upload_f32(&scales)?),
-                biases: Some(gpu.upload_f32(&biases)?),
-                rows,
-                cols,
-                bits,
-                group: group_size,
-            }),
+            } => {
+                let metadata_bf16 = compacted.is_some();
+                let (scales, biases) = if let Some((s, b)) = compacted {
+                    (
+                        gpu.upload_bytes(bytemuck::cast_slice(&s))?,
+                        gpu.upload_bytes(bytemuck::cast_slice(&b))?,
+                    )
+                } else {
+                    (gpu.upload_f32(&scales)?, gpu.upload_f32(&biases)?)
+                };
+                let matrix = Self {
+                    weight: gpu.upload_bytes(bytemuck::cast_slice(&weights))?,
+                    scales: Some(scales),
+                    biases: Some(biases),
+                    rows,
+                    cols,
+                    bits,
+                    group: group_size,
+                    metadata_bf16,
+                };
+                if metadata_bf16 {
+                    gpu.record_compacted_metadata(saved_bytes);
+                }
+                Ok(matrix)
+            }
         }
     }
 
     fn matvec(&self, e: &DispatchEncoder<'_>, x: &BufferRef, y: &BufferRef) -> Result<()> {
         if let (Some(s), Some(b)) = (&self.scales, &self.biases) {
             e.encode(
-                "matvec_affine",
+                if self.metadata_bf16 {
+                    "matvec_affine_bf16"
+                } else {
+                    "matvec_affine"
+                },
                 &[&self.weight, s, b, x, y],
                 &[
                     self.rows as u32,
@@ -110,7 +145,11 @@ impl Matrix {
     fn embed(&self, e: &DispatchEncoder<'_>, token: u32, y: &BufferRef) -> Result<()> {
         if let (Some(s), Some(b)) = (&self.scales, &self.biases) {
             e.encode(
-                "embed_affine",
+                if self.metadata_bf16 {
+                    "embed_affine_bf16"
+                } else {
+                    "embed_affine"
+                },
                 &[&self.weight, s, b, y],
                 &[token, self.cols as u32, self.bits, self.group as u32],
                 self.cols,
@@ -386,8 +425,20 @@ impl Engine {
     pub fn norm_mode(&self) -> &str {
         self.gpu.norm_mode()
     }
+    pub fn metadata_mode(&self) -> &str {
+        self.gpu.metadata_mode()
+    }
+    pub fn metadata_stats(&self) -> (usize, u64) {
+        self.gpu.metadata_stats()
+    }
     pub fn enable_profiling(&mut self) -> Result<()> {
         self.gpu.enable_profiling()
+    }
+    pub fn enable_command_profiling(&mut self) -> Result<()> {
+        self.gpu.enable_command_profiling()
+    }
+    pub fn profile_backend(&self) -> Option<&str> {
+        self.gpu.profile_backend()
     }
     pub fn disable_profiling(&mut self) {
         self.gpu.disable_profiling();

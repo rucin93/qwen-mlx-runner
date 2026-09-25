@@ -1,0 +1,121 @@
+{
+  "provenance": "Local Apple M1 measurements, not the target M5. One exploratory measurement per configuration; no model throughput claim.",
+  "engine_version": "0.3.0",
+  "release_binary_sha256": "b00d5fa8ed81f4028b29f90996b45d33ab9d09d5863936919db43e7ec3810654",
+  "measurements": [
+    {
+      "bits": 4,
+      "cols": 5120,
+      "device": "Apple M1",
+      "effective_weight_gb_per_second": 34.278420810173024,
+      "group_size": 64,
+      "iterations": 60,
+      "kernel_mode": "aligned",
+      "kind": "packed_matvec_microbenchmark",
+      "metadata_mode": "f32",
+      "milliseconds_per_matvec": 1.6250923666666668,
+      "note": "Repeated synthetic weights may benefit from cache. This is NOT model tokens per second.",
+      "rows": 17408,
+      "seconds": 0.097505542,
+      "synthetic_metadata_values": {
+        "bias": -0.0625,
+        "scale": 0.015625
+      }
+    },
+    {
+      "bits": 4,
+      "cols": 5120,
+      "device": "Apple M1",
+      "effective_weight_gb_per_second": 25.433927518310664,
+      "group_size": 64,
+      "iterations": 60,
+      "kernel_mode": "aligned",
+      "kind": "packed_matvec_microbenchmark",
+      "metadata_mode": "bf16",
+      "milliseconds_per_matvec": 1.9711874999999999,
+      "note": "Repeated synthetic weights may benefit from cache. This is NOT model tokens per second.",
+      "rows": 17408,
+      "seconds": 0.11827125,
+      "synthetic_metadata_values": {
+        "bias": -0.0625,
+        "scale": 0.015625
+      }
+    },
+    {
+      "bits": 4,
+      "cols": 17408,
+      "device": "Apple M1",
+      "effective_weight_gb_per_second": 19.14652347835842,
+      "group_size": 64,
+      "iterations": 60,
+      "kernel_mode": "aligned",
+      "kind": "packed_matvec_microbenchmark",
+      "metadata_mode": "f32",
+      "milliseconds_per_matvec": 2.9094368,
+      "note": "Repeated synthetic weights may benefit from cache. This is NOT model tokens per second.",
+      "rows": 5120,
+      "seconds": 0.174566208,
+      "synthetic_metadata_values": {
+        "bias": -0.0625,
+        "scale": 0.015625
+      }
+    },
+    {
+      "bits": 4,
+      "cols": 17408,
+      "device": "Apple M1",
+      "effective_weight_gb_per_second": 23.52145017940555,
+      "group_size": 64,
+      "iterations": 60,
+      "kernel_mode": "aligned",
+      "kind": "packed_matvec_microbenchmark",
+      "metadata_mode": "bf16",
+      "milliseconds_per_matvec": 2.1314604166666666,
+      "note": "Repeated synthetic weights may benefit from cache. This is NOT model tokens per second.",
+      "rows": 5120,
+      "seconds": 0.127887625,
+      "synthetic_metadata_values": {
+        "bias": -0.0625,
+        "scale": 0.015625
+      }
+    },
+    {
+      "bits": 4,
+      "cols": 5120,
+      "device": "Apple M1",
+      "effective_weight_gb_per_second": 22.023228267944152,
+      "group_size": 64,
+      "iterations": 8,
+      "kernel_mode": "aligned",
+      "kind": "packed_matvec_microbenchmark",
+      "metadata_mode": "f32",
+      "milliseconds_per_matvec": 36.081177125,
+      "note": "Repeated synthetic weights may benefit from cache. This is NOT model tokens per second.",
+      "rows": 248320,
+      "seconds": 0.288649417,
+      "synthetic_metadata_values": {
+        "bias": -0.0625,
+        "scale": 0.015625
+      }
+    },
+    {
+      "bits": 4,
+      "cols": 5120,
+      "device": "Apple M1",
+      "effective_weight_gb_per_second": 30.7911196497335,
+      "group_size": 64,
+      "iterations": 8,
+      "kernel_mode": "aligned",
+      "kind": "packed_matvec_microbenchmark",
+      "metadata_mode": "bf16",
+      "milliseconds_per_matvec": 23.226229125,
+      "note": "Repeated synthetic weights may benefit from cache. This is NOT model tokens per second.",
+      "rows": 248320,
+      "seconds": 0.185809833,
+      "synthetic_metadata_values": {
+        "bias": -0.0625,
+        "scale": 0.015625
+      }
+    }
+  ]
+}

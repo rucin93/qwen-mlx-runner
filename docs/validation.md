@@ -108,3 +108,44 @@ The optional stream path also passed all four inference tests in a separate
 `QWEN_METAL_GEMV=stream` run. The comparator was checked for below/above absolute
 token-rate targets, combined constraints, and invalid rates. These checks do
 not establish trained-model quality or a v0.2 M5 throughput improvement.
+
+## v0.3 counter fallback and exact metadata validation
+
+The user reported zero stage-counter timestamps on the M5 Pro. The release
+adds a counter-free command-buffer backend and keeps the normal-step timing
+when diagnostic samples are unavailable. A failed GPU execution is handled
+separately from unavailable timestamps and stops the comparison.
+
+Final local validation used the same M1 host with actual Metal access:
+
+```text
+cargo test --offline --locked -- --include-ignored
+  48 library tests and 8 integration tests passed (56 total)
+  0 failed, 0 ignored
+cargo build --release --offline --locked -j 2
+  passed
+cargo fmt --all -- --check
+  passed
+git diff --check
+  passed
+```
+
+The integration tests include the independent five-token BF16 checkpoint
+oracle, BF16 matrix/embedding cases, complete-engine command-profiling logits,
+and the previous inference, normalization and quantized-matrix coverage.
+A separate `QWEN_METAL_METADATA=bf16` run of `bf16_inference` and `inference`
+passed all five tests, including exact storage-savings accounting.
+
+The final release CLI was exercised with `--compare-norm --profile-backend
+commands` on both the small BF16 checkpoint and the full 64-layer synthetic
+graph. Both normalization captures completed without profile errors, with
+75 and 1,155 timed dispatches respectively. The JSON contained positive normal
+GPU times and operation durations, null counter ticks, and null outer-command
+`profiled_timing`. The BF16 checkpoint reported 33 compacted matrices and
+exactly 6,576 bytes saved. Synthetic weights are reused; these runs establish
+profiling execution and output structure, not trained-model throughput.
+
+Independent read-only review found no remaining actionable correctness issue
+after the missing-timestamp and partial-state error paths were corrected.
+The command backend still needs confirmation on the user's M5 driver. BF16
+metadata remains opt-in, and no v0.3 full-model M5 speedup is claimed.

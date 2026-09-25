@@ -28,6 +28,8 @@ to a three-run median of **8.16 tokens/s** with the aligned kernels. The request
 10× improvement remains a target, **not a verified result**. See the
 [first iteration](docs/performance-2026-09-25.md) and
 [v0.2 profiling and optimization notes](docs/performance-v0.2.md).
+The [v0.3 notes](docs/performance-v0.3.md) cover the M5 zero-counter fallback
+and optional lossless BF16 metadata storage.
 
 Implemented:
 
@@ -186,6 +188,14 @@ original matrix and barrier-list path for `bench`, `generate`, `serve`, and
 `synthetic-bench`. These switches leave model weights and context unchanged.
 Final model benchmark JSON reports `kernel_mode`.
 
+`QWEN_METAL_METADATA=bf16` keeps affine scales/biases in 16-bit BF16 storage
+only when every value reconstructs the original FP32 bits exactly. Matrices
+with inexact metadata or unsupported groups retain FP32 storage. This is not
+weight requantization; arithmetic and Q4/Q8 values are unchanged. The default
+is `f32`, and reference mode always uses FP32. Benchmark JSON reports the
+actual `compacted_matrices` and `metadata_saved_bytes`. The `stream` mode uses
+the packed BF16 kernel when metadata is compacted.
+
 RMS normalization retains the original single-SIMD path by default.
 `QWEN_METAL_NORM=parallel` enables the new 256-thread reduction for large
 disjoint buffers. It remains opt-in until full target-model improvement is
@@ -196,16 +206,20 @@ To locate costs on the actual model, run one diagnostic capture:
 ```sh
 ./target/release/qwen-metal profile \
   --model models/Qwen3.8-27B-4bit --context 8192 --history 512 \
-  --compare-norm > profile.json
+  --compare-norm --profile-backend commands > profile.json
 ```
 
 This prefills the fixed history once, then captures both serial and parallel
 RMS. Each capture warms up a complete step, times a normal step, and profiles
 the next step. Within each `captures` entry, `normal_timing` separates CPU encoding,
 CPU commit, completion wait, and Metal's whole-command GPU interval. GPU time
-overlaps the wait and must not be added to it. Operation samples are calibrated
-to the CPU timebase. The profiled step uses one encoder per operation, which
-changes scheduling; its elapsed time is **not normal inference throughput**.
+overlaps the wait and must not be added to it. `commands` uses GPU start/end
+timestamps from one synchronous command buffer per operation. This avoids
+hardware counters that returned zero samples on the target M5. The default
+`auto` backend tries calibrated stage counters and falls back when samples are
+unavailable. Both change scheduling; profiled elapsed time is **not normal
+inference throughput**. Missing timings produce explicit errors/null data;
+normal-command timing is preserved. An actual execution failure stops comparison.
 Omitting `--model` profiles the smaller synthetic reused-weight graph instead.
 
 For a same-build comparison, save the final JSON from two otherwise identical

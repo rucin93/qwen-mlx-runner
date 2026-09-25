@@ -25,6 +25,7 @@ fn share(m: &Matrix) -> Matrix {
         cols: m.cols,
         bits: m.bits,
         group: m.group,
+        metadata_bf16: m.metadata_bf16,
     }
 }
 
@@ -75,6 +76,7 @@ fn packed_q4(g: &Gpu, rows: usize, cols: usize) -> Result<Matrix> {
         cols,
         bits: 4,
         group: GROUP,
+        metadata_bf16: false,
     })
 }
 

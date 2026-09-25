@@ -1,7 +1,10 @@
 //! Original Metal compute backend; see kernels/qwen.metal for the dispatch ABI.
+mod metadata;
 mod profile;
 mod timing;
 use anyhow::{Context, Result, anyhow, bail, ensure};
+pub use metadata::pack_bf16_exact;
+use metadata::supported_bf16_quantization;
 use metal::{
     Buffer, BufferRef, CommandBufferRef, CommandQueue, ComputeCommandEncoderRef,
     ComputePipelineState, Device, MTLCommandBufferStatus, MTLResourceOptions, MTLSize, ResourceRef,
@@ -19,6 +22,9 @@ pub struct Gpu {
     reference_kernels: bool,
     matvec_variant: String,
     parallel_norm: bool,
+    bf16_metadata: bool,
+    compacted_matrices: Cell<usize>,
+    metadata_saved_bytes: Cell<u64>,
     profiler: Option<StageProfiler>,
     frame_started: Cell<Option<Instant>>,
     frame_timing: Cell<Option<FrameTiming>>,
@@ -46,6 +52,11 @@ impl DispatchEncoder<'_> {
                 .gpu
                 .encode(e, name, buffers, params, threads, group_size);
             e.end_encoding();
+            if result.is_ok() {
+                profiler.finish_dispatch()?;
+            } else {
+                profiler.abort_dispatch();
+            }
             result
         } else {
             self.gpu.encode(
@@ -73,6 +84,7 @@ const KERNELS: &[&str] = &[
     "matvec_affine",
     "embed_f16",
     "embed_affine",
+    "embed_affine_bf16",
     "rms_norm",
     "rms_norm_parallel",
     "add",
@@ -100,6 +112,13 @@ const KERNELS: &[&str] = &[
     "matvec_q4_g32_stream",
     "matvec_q4_g64_stream",
     "matvec_q4_g128_stream",
+    "matvec_q4_g32_bf16",
+    "matvec_q4_g64_bf16",
+    "matvec_q4_g128_bf16",
+    "matvec_q8_g32_bf16",
+    "matvec_q8_g64_bf16",
+    "matvec_q8_g128_bf16",
+    "matvec_q4_g64_aligned_bf16",
 ];
 impl Gpu {
     pub fn new() -> Result<Self> {
@@ -122,6 +141,11 @@ impl Gpu {
             matches!(norm_mode.as_str(), "parallel" | "serial"),
             "QWEN_METAL_NORM must be parallel or serial"
         );
+        let metadata_mode = std::env::var("QWEN_METAL_METADATA").unwrap_or_else(|_| "f32".into());
+        ensure!(
+            matches!(metadata_mode.as_str(), "f32" | "bf16"),
+            "QWEN_METAL_METADATA must be f32 or bf16"
+        );
         let device = Device::system_default()
             .context("No Metal GPU available; this engine requires Apple Silicon")?;
         ensure!(
@@ -140,7 +164,9 @@ impl Gpu {
                 concat!(
                     include_str!("../kernels/qwen.metal"),
                     "\n",
-                    include_str!("../kernels/norm_fast.metal")
+                    include_str!("../kernels/norm_fast.metal"),
+                    "\n",
+                    include_str!("../kernels/affine_bf16.metal")
                 ),
                 &options,
             )
@@ -154,7 +180,9 @@ impl Gpu {
                     "\n",
                     include_str!("../kernels/matvec_aligned.metal"),
                     "\n",
-                    include_str!("../kernels/matvec_stream.metal")
+                    include_str!("../kernels/matvec_stream.metal"),
+                    "\n",
+                    include_str!("../kernels/affine_bf16.metal")
                 ),
                 &mat_options,
             )
@@ -173,7 +201,10 @@ impl Gpu {
             descriptor.set_thread_group_size_is_multiple_of_thread_execution_width(true);
             if name.starts_with("matvec_q") {
                 descriptor.set_max_total_threads_per_threadgroup(
-                    if name.ends_with("_aligned") || name.ends_with("_stream") {
+                    if name.ends_with("_aligned")
+                        || name.ends_with("_aligned_bf16")
+                        || name.ends_with("_stream")
+                    {
                         64
                     } else {
                         128
@@ -200,6 +231,9 @@ impl Gpu {
             reference_kernels,
             matvec_variant: variant.into(),
             parallel_norm: norm_mode == "parallel",
+            bf16_metadata: metadata_mode == "bf16" && !reference_kernels,
+            compacted_matrices: Cell::new(0),
+            metadata_saved_bytes: Cell::new(0),
             profiler: None,
             frame_started: Cell::new(None),
             frame_timing: Cell::new(None),
@@ -219,9 +253,46 @@ impl Gpu {
             "serial"
         }
     }
+    /// Requested storage policy; individual inexact or unsupported matrices
+    /// retain FP32 metadata. The reference path always reports and stores FP32.
+    pub fn metadata_mode(&self) -> &str {
+        if self.bf16_metadata { "bf16" } else { "f32" }
+    }
+    /// Successfully loaded compacted matrices and their actual saved bytes.
+    pub fn metadata_stats(&self) -> (usize, u64) {
+        (
+            self.compacted_matrices.get(),
+            self.metadata_saved_bytes.get(),
+        )
+    }
+    pub(crate) fn compact_metadata(
+        &self,
+        bits: u32,
+        group: usize,
+        scales: &[f32],
+        biases: &[f32],
+    ) -> Option<(Vec<u16>, Vec<u16>)> {
+        if !self.bf16_metadata || !supported_bf16_quantization(bits, group) {
+            return None;
+        }
+        Some((pack_bf16_exact(scales)?, pack_bf16_exact(biases)?))
+    }
+    pub(crate) fn record_compacted_metadata(&self, saved_bytes: u64) {
+        self.compacted_matrices
+            .set(self.compacted_matrices.get() + 1);
+        self.metadata_saved_bytes
+            .set(self.metadata_saved_bytes.get() + saved_bytes);
+    }
     pub fn enable_profiling(&mut self) -> Result<()> {
         self.profiler = Some(StageProfiler::new(&self.device)?);
         Ok(())
+    }
+    pub fn enable_command_profiling(&mut self) -> Result<()> {
+        self.profiler = Some(StageProfiler::new_command_timing(&self.device)?);
+        Ok(())
+    }
+    pub fn profile_backend(&self) -> Option<&str> {
+        self.profiler.as_ref().map(|p| p.backend_name())
     }
     pub fn disable_profiling(&mut self) {
         self.profiler = None;
@@ -318,7 +389,18 @@ impl Gpu {
         group_size: usize,
     ) -> Result<()> {
         let (sizes, expected_threads) = dispatch_layout(name, params)?;
-        let specialized = if !self.reference_kernels && name == "matvec_affine" {
+        ensure!(
+            !self.reference_kernels || !name.ends_with("_bf16"),
+            "BF16 metadata dispatch is unavailable in reference mode"
+        );
+        let specialized = if name == "matvec_affine_bf16" {
+            // There is no BF16 stream kernel. Explicitly select the packed
+            // variant so compressed metadata is never read as FP32.
+            Some(
+                specialized_matvec_bf16(params, self.matvec_variant == "aligned")
+                    .context("Unsupported BF16 affine quantization")?,
+            )
+        } else if !self.reference_kernels && name == "matvec_affine" {
             let stream = if self.matvec_variant == "stream"
                 && params[2] == 4
                 && u64::from(params[0]) * u64::from(params[1]) <= i32::MAX as u64
@@ -361,7 +443,9 @@ impl Gpu {
         );
         let actual_group_size = if specialized == Some("rms_norm_parallel") {
             256
-        } else if specialized.is_some_and(|n| n.ends_with("_aligned") || n.ends_with("_stream")) {
+        } else if specialized.is_some_and(|n| {
+            n.ends_with("_aligned") || n.ends_with("_aligned_bf16") || n.ends_with("_stream")
+        }) {
             64
         } else {
             group_size
@@ -411,8 +495,8 @@ impl Gpu {
                 "split_q_gate" => &[1, 2],
                 "kv_append" => &[2, 3],
                 "delta_norm" | "head_rms" | "rope" | "softmax" => &[0],
-                "matvec_affine" => &[4],
-                "embed_affine" | "gated_rms" | "attn_values" => &[3],
+                "matvec_affine" | "matvec_affine_bf16" => &[4],
+                "embed_affine" | "embed_affine_bf16" | "gated_rms" | "attn_values" => &[3],
                 "embed_f16" => &[1],
                 _ => &[2],
             };
@@ -475,12 +559,30 @@ fn specialized_matvec(p: &[u32], aligned: bool) -> Option<&'static str> {
     }
 }
 
+fn specialized_matvec_bf16(p: &[u32], aligned: bool) -> Option<&'static str> {
+    let aligned = aligned
+        && p[0] % 4 == 0
+        && p[1] % 512 == 0
+        && u64::from(p[0]) * u64::from(p[1]) <= i32::MAX as u64;
+    match (p[2], p[3], aligned) {
+        (4, 64, true) => Some("matvec_q4_g64_aligned_bf16"),
+        (4, 32, _) => Some("matvec_q4_g32_bf16"),
+        (4, 64, _) => Some("matvec_q4_g64_bf16"),
+        (4, 128, _) => Some("matvec_q4_g128_bf16"),
+        (8, 32, _) => Some("matvec_q8_g32_bf16"),
+        (8, 64, _) => Some("matvec_q8_g64_bf16"),
+        (8, 128, _) => Some("matvec_q8_g128_bf16"),
+        _ => None,
+    }
+}
+
 // Host validation is independent of GPU availability and prevents malformed ABI inputs
 // from becoming unchecked shader memory access. All indexing stays within uint range.
 fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
     let count = match name {
         "matvec_f16" | "embed_f16" | "rms_norm" | "conv_silu" | "split_q_gate" | "softmax" => 2,
-        "matvec_affine" | "embed_affine" | "delta_step" | "attn_scores" | "attn_values" => 4,
+        "matvec_affine" | "embed_affine" | "matvec_affine_bf16" | "embed_affine_bf16"
+        | "delta_step" | "attn_scores" | "attn_values" => 4,
         "delta_norm" | "gated_rms" | "head_rms" | "kv_append" => 3,
         "rope" => 5,
         "add" | "swiglu" => 1,
@@ -515,7 +617,8 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
         Ok(())
     };
     Ok(match name {
-        "matvec_f16" | "embed_f16" | "matvec_affine" | "embed_affine" => {
+        "matvec_f16" | "embed_f16" | "matvec_affine" | "embed_affine" | "matvec_affine_bf16"
+        | "embed_affine_bf16" => {
             positive(&[1])?;
             let embedding = name.starts_with("embed");
             let rows = if embedding {
@@ -526,7 +629,8 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
             };
             let total = product(&[rows, n(1)])?;
             let output = if embedding { n(1) } else { n(0) };
-            let mut sizes = if name.ends_with("affine") {
+            let bf16_metadata = name.ends_with("_bf16");
+            let mut sizes = if name.ends_with("affine") || bf16_metadata {
                 ensure!(
                     matches!(p[2], 4 | 8) && p[3] > 0,
                     "Only affine 4/8-bit quantization supported"
@@ -535,13 +639,20 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
                     n(1) % (32 / n(2)) == 0 && n(1) % n(3) == 0,
                     "Invalid packed matrix alignment"
                 );
+                ensure!(
+                    !bf16_metadata || supported_bf16_quantization(p[2], n(3)),
+                    "BF16 metadata supports only affine Q4/Q8 groups 32, 64 or 128"
+                );
+                let metadata_bytes = (total / n(3))
+                    .checked_mul(if bf16_metadata { 2 } else { 4 })
+                    .context("Affine metadata byte size overflow")?;
                 vec![
                     total
                         .checked_mul(n(2))
                         .context("Packed byte size overflow")?
                         / 8,
-                    f(total / n(3))?,
-                    f(total / n(3))?,
+                    metadata_bytes,
+                    metadata_bytes,
                 ]
             } else {
                 vec![total.checked_mul(2).context("Dense byte size overflow")?]
@@ -669,6 +780,56 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn bf16_dispatch_keeps_metadata_typed_and_rejects_unsupported_groups() -> Result<()> {
+        let (sizes, threads) = dispatch_layout("matvec_affine_bf16", &[20, 5120, 4, 64])?;
+        assert_eq!(sizes, vec![51200, 3200, 3200, 20480, 80]);
+        assert_eq!(threads, 640);
+        let (sizes, threads) = dispatch_layout("embed_affine_bf16", &[249999, 5120, 4, 64])?;
+        assert_eq!(sizes, vec![640_000_000, 40_000_000, 40_000_000, 20480]);
+        assert_eq!(threads, 5120);
+        for name in ["matvec_affine_bf16", "embed_affine_bf16"] {
+            assert!(dispatch_layout(name, &[2, 256, 4, 256]).is_err());
+            assert!(dispatch_layout(name, &[2, 128, 4, 8]).is_err());
+            assert!(dispatch_layout(name, &[2, 128, 2, 64]).is_err());
+            assert!(dispatch_layout(name, &[2, 127, 4, 64]).is_err());
+        }
+        Ok(())
+    }
+
+    #[test]
+    fn bf16_aligned_kernel_requires_q4_group64_and_safe_dimensions() {
+        assert_eq!(
+            specialized_matvec_bf16(&[20, 5120, 4, 64], true),
+            Some("matvec_q4_g64_aligned_bf16")
+        );
+        for p in [[19, 5120, 4, 64], [20, 192, 4, 64], [524288, 8192, 4, 64]] {
+            assert_eq!(
+                specialized_matvec_bf16(&p, true),
+                Some("matvec_q4_g64_bf16")
+            );
+        }
+        for aligned in [true, false] {
+            assert_eq!(
+                specialized_matvec_bf16(&[20, 5120, 4, 32], aligned),
+                Some("matvec_q4_g32_bf16")
+            );
+            assert_eq!(
+                specialized_matvec_bf16(&[20, 5120, 4, 128], aligned),
+                Some("matvec_q4_g128_bf16")
+            );
+            assert_eq!(
+                specialized_matvec_bf16(&[20, 5120, 8, 64], aligned),
+                Some("matvec_q8_g64_bf16")
+            );
+            assert_eq!(specialized_matvec_bf16(&[20, 5120, 4, 256], aligned), None);
+        }
+        assert_eq!(
+            specialized_matvec_bf16(&[20, 5120, 4, 64], false),
+            Some("matvec_q4_g64_bf16")
+        );
+    }
 
     #[test]
     fn aligned_dispatch_requires_safe_dimensions() {
