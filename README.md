@@ -173,7 +173,6 @@ curl http://127.0.0.1:8080/v1/chat/completions \
   -d '{
     "model": "Qwen3.8-27B-4bit",
     "messages": [{"role": "user", "content": "Wyjaśnij krótko, czym jest Rust."}],
-    "max_tokens": 256,
     "temperature": 0.7,
     "top_p": 0.8,
     "top_k": 20,
@@ -189,9 +188,13 @@ and `tool` roles, including multipart text and assistant tool-call history.
 Supported controls include `tools`, `tool_choice`, `parallel_tool_calls`,
 `stream_options`, `stop`, `max_tokens` / `max_completion_tokens`, `temperature`,
 `top_p`, `top_k`, `seed`, `frequency_penalty`, `presence_penalty`, `logit_bias`,
-`reasoning_effort`, and `enable_thinking`. The output cap is 4096 tokens per
-request. Prompt plus output budget must fit `--context`; overflow returns HTTP
-400 with `context_length_exceeded`, including before streaming starts.
+`reasoning_effort`, and `enable_thinking`. From version 0.7.1, the HTTP API has no
+fixed output-token cap or 256-token default. Omit the output limit or set it to
+null to use the context remaining after the complete prompt is tokenized.
+An explicit positive limit is an upper bound: the effective budget is the
+smaller of that limit and the remaining context. A prompt that leaves no room
+for an output token returns HTTP 400 with `context_length_exceeded`, including
+before streaming starts. EOS and stop sequences can end generation earlier.
 The server binds only to loopback.
 
 Thinking is off by default. HTTP responses separate reasoning into
@@ -210,11 +213,16 @@ provider/model settings into your existing config. Then run `opencode` in that
 project. The config uses `@ai-sdk/openai-compatible`, the local `/v1` endpoint,
 and this model for both main and small-model tasks. No API key is needed.
 
-The example declares an 8192-token context and a 2048-token output budget;
-update the context value together with the server's `--context` if you change
-it. Explicit limits prevent OpenCode from requesting a default output budget
-larger than this server supports. Large repositories or long tool histories
-can still require compaction. Integration tests exercise the actual adapter
+The example sets `limit.context`, `limit.input` and `limit.output` to 8192;
+keep all three equal to the server's `--context` when changing it. The server
+reduces each requested output budget to the space the actual prompt leaves.
+`compaction.reserved:1024` gives OpenCode headroom for summarizing a growing
+conversation; it does not cap an answer at 1024 tokens. The explicit input limit
+lets OpenCode use that reserve instead of subtracting the entire output limit
+from the context and immediately requesting compaction. See the
+[verified compaction calculation](docs/openai-compatibility.md#configure-opencode).
+Large repositories or long tool histories can still require compaction.
+Integration tests exercise the actual adapter
 version used by the inspected OpenCode release; trained-model tool selection
 and argument quality still require evaluation with your checkpoint.
 

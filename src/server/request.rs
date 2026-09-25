@@ -338,17 +338,12 @@ pub(super) fn parse(value: Value, model_id: &str) -> Result<ParsedRequest> {
         "max_tokens"
     };
     let max_tokens = supplied(object, limit_key)
-        .map_or(Some(256), Value::as_u64)
-        .filter(|n| (1..=super::MAX_TOKENS as u64).contains(n))
+        .map_or(Some(usize::MAX as u64), Value::as_u64)
+        .and_then(|n| usize::try_from(n).ok())
+        .filter(|&n| n > 0)
         .ok_or_else(|| {
-            RequestError::invalid(
-                limit_key,
-                format!(
-                    "{limit_key} must be an integer in 1..={}",
-                    super::MAX_TOKENS
-                ),
-            )
-        })? as usize;
+            RequestError::invalid(limit_key, format!("{limit_key} must be a positive integer"))
+        })?;
     let temperature = number(object, "temperature", 1.0, 0.0, 2.0)?;
     let top_p = number(object, "top_p", 1.0, 0.0, 1.0)?;
     if top_p == 0.0 {

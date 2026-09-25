@@ -849,10 +849,10 @@ impl TextGenerator for ChatEngine {
     fn vocab_size(&self) -> Option<usize> {
         Some(self.engine.config().vocab_size)
     }
-    fn validate_request(&self, r: &GenerationRequest) -> Result<()> {
+    fn prepare_request(&self, r: &mut GenerationRequest) -> Result<()> {
         r.sampling.validate(self.engine.config().vocab_size)?;
         self.tokenizer
-            .validate_request(r, self.engine.context_capacity())
+            .prepare_request(r, self.engine.context_capacity())
     }
     fn generate(
         &mut self,

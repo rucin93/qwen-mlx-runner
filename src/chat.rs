@@ -62,9 +62,9 @@ pub trait TextGenerator: Send {
         on_text: &mut dyn FnMut(&str) -> bool,
     ) -> Result<GenerationOutput>;
     fn model_id(&self) -> &str;
-    fn validate_request(&self, _request: &GenerationRequest) -> Result<()> {
-        Ok(())
-    }
+    /// Validate an HTTP request and bound its output budget to available context
+    /// before generation can allocate buffers. `usize::MAX` means no client cap.
+    fn prepare_request(&self, request: &mut GenerationRequest) -> Result<()>;
     /// Allows HTTP validation before queuing an otherwise expensive generation.
     fn vocab_size(&self) -> Option<usize> {
         None
@@ -74,15 +74,14 @@ pub trait TextGenerator: Send {
 #[derive(Debug)]
 pub struct ContextLengthExceeded {
     pub prompt_tokens: usize,
-    pub max_tokens: usize,
     pub capacity: usize,
 }
 impl std::fmt::Display for ContextLengthExceeded {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "prompt ({} tokens) plus max_tokens ({}) exceeds context {}",
-            self.prompt_tokens, self.max_tokens, self.capacity
+            "prompt ({} tokens) must be shorter than context {} to leave room for a completion",
+            self.prompt_tokens, self.capacity
         )
     }
 }
@@ -94,22 +93,19 @@ pub struct ChatTokenizer {
 }
 
 impl ChatTokenizer {
-    pub fn validate_request(&self, request: &GenerationRequest, capacity: usize) -> Result<()> {
+    pub fn prepare_request(&self, request: &mut GenerationRequest, capacity: usize) -> Result<()> {
         anyhow::ensure!(request.max_tokens > 0, "max_tokens must be positive");
         let tokens = self.encode(&self.render_request(request)?)?;
         anyhow::ensure!(!tokens.is_empty(), "empty prompt after tokenization");
-        if tokens
-            .len()
-            .checked_add(request.max_tokens)
-            .is_none_or(|n| n > capacity)
-        {
+        let remaining = capacity.saturating_sub(tokens.len());
+        if remaining == 0 {
             return Err(ContextLengthExceeded {
                 prompt_tokens: tokens.len(),
-                max_tokens: request.max_tokens,
                 capacity,
             }
             .into());
         }
+        request.max_tokens = request.max_tokens.min(remaining);
         Ok(())
     }
     pub fn load(directory: &Path) -> Result<Self> {
@@ -467,21 +463,19 @@ mod tests {
             max_tokens: 4,
             ..Default::default()
         };
-        t.validate_request(&request, 5).unwrap();
-        let error = t.validate_request(&request, 4).unwrap_err();
+        t.prepare_request(&mut request, 5).unwrap();
+        assert_eq!(request.max_tokens, 4);
+        t.prepare_request(&mut request, 4).unwrap();
+        assert_eq!(request.max_tokens, 3);
+        let error = t.prepare_request(&mut request, 1).unwrap_err();
         let detail = error.downcast_ref::<ContextLengthExceeded>().unwrap();
         assert_eq!(detail.prompt_tokens, 1);
-        assert_eq!(detail.max_tokens, 4);
-        assert_eq!(detail.capacity, 4);
+        assert_eq!(detail.capacity, 1);
         request.max_tokens = usize::MAX;
-        assert!(
-            t.validate_request(&request, usize::MAX)
-                .unwrap_err()
-                .downcast_ref::<ContextLengthExceeded>()
-                .is_some()
-        );
+        t.prepare_request(&mut request, usize::MAX).unwrap();
+        assert_eq!(request.max_tokens, usize::MAX - 1);
         request.max_tokens = 0;
-        assert!(t.validate_request(&request, 5).is_err());
+        assert!(t.prepare_request(&mut request, 5).is_err());
     }
 
     #[test]

@@ -7,6 +7,10 @@ use tower::ServiceExt;
 
 struct TestEngine;
 impl TextGenerator for TestEngine {
+    fn prepare_request(&self, _: &mut GenerationRequest) -> Result<()> {
+        // Fixed scripted output; this fixture never allocates from the budget.
+        Ok(())
+    }
     fn model_id(&self) -> &str {
         "test-model"
     }
@@ -204,6 +208,9 @@ async fn thinking_output_has_opening_boundary() {
 fn dropped_client_cancels_generation_at_empty_poll() {
     struct ProbeEngine(Arc<AtomicBool>, Arc<std::sync::Barrier>);
     impl TextGenerator for ProbeEngine {
+        fn prepare_request(&self, _: &mut GenerationRequest) -> Result<()> {
+            Ok(())
+        }
         fn model_id(&self) -> &str {
             "probe"
         }
@@ -263,6 +270,9 @@ struct ScriptEngine {
     inspect: Option<std::sync::mpsc::Sender<GenerationRequest>>,
 }
 impl TextGenerator for ScriptEngine {
+    fn prepare_request(&self, _: &mut GenerationRequest) -> Result<()> {
+        Ok(())
+    }
     fn model_id(&self) -> &str {
         "test-model"
     }
@@ -494,6 +504,88 @@ async fn malformed_tool_output_is_not_exposed_as_an_executable_call() {
 }
 
 #[tokio::test]
+async fn explicit_token_budgets_above_4096_are_accepted() {
+    for field in ["max_tokens", "max_completion_tokens"] {
+        let (app, requests) = script_app("okay");
+        let mut payload = json!({"model":"test-model","messages":[{"role":"user","content":"hi"}]});
+        payload[field] = json!(8192);
+        let (status, body) = post(app, payload).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        assert_eq!(requests.recv().unwrap().max_tokens, 8192);
+    }
+}
+
+#[tokio::test]
+#[ignore = "requires a real Apple Metal GPU"]
+async fn uncapped_http_output_uses_remaining_context_in_both_engines() {
+    use crate::{engine::ChatEngine, mtp_chat::MtpChatEngine};
+    let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
+    let target = tempfile::tempdir().unwrap();
+    for file in ["model.safetensors", "tokenizer.json", "chat_template.jinja"] {
+        std::fs::copy(
+            fixtures.join("tiny-q4").join(file),
+            target.path().join(file),
+        )
+        .unwrap();
+    }
+    let mut config: Value =
+        serde_json::from_slice(&std::fs::read(fixtures.join("tiny-q4/config.json")).unwrap())
+            .unwrap();
+    config["text_config"]["max_position_embeddings"] = json!(520);
+    std::fs::write(target.path().join("config.json"), config.to_string()).unwrap();
+    for mtp in [false, true] {
+        let engine: Box<dyn TextGenerator> = if mtp {
+            Box::new(
+                MtpChatEngine::load(target.path(), &fixtures.join("tiny-mtp"), 520, 3).unwrap(),
+            )
+        } else {
+            Box::new(ChatEngine::load(target.path(), 520).unwrap())
+        };
+        let model = engine.model_id().to_owned();
+        let vocab_size = engine.vocab_size();
+        let (sender, receiver) = mpsc::sync_channel(QUEUE_CAPACITY);
+        std::thread::spawn(move || worker(engine, receiver));
+        let app = router(ServerState {
+            sender,
+            model: model.clone(),
+            vocab_size,
+        });
+        // The real tiny tokenizer renders four tokens: user w6 w7 assistant.
+        // A strong bias avoids EOS, so output must reach the actual context boundary.
+        for (budget, expected) in [
+            (None, 516),
+            (Some(json!(null)), 516),
+            (Some(json!(8192)), 516),
+            (Some(json!(u64::MAX)), 516),
+            (Some(json!(8)), 8),
+        ] {
+            let mut payload = json!({"model":model,"messages":[{"role":"user","content":"w6 w7"}],"temperature":0,"logit_bias":{"6":100}});
+            if let Some(budget) = budget {
+                payload["max_completion_tokens"] = budget;
+            }
+            let (status, body) = post(app.clone(), payload).await;
+            assert_eq!(status, StatusCode::OK, "mtp={mtp}: {body}");
+            let response: Value = serde_json::from_str(&body).unwrap();
+            assert_eq!(response["usage"]["prompt_tokens"], 4);
+            assert_eq!(
+                response["usage"]["completion_tokens"], expected,
+                "mtp={mtp}: {body}"
+            );
+            assert_eq!(response["choices"][0]["finish_reason"], "length");
+        }
+        for stream in [false, true] {
+            let payload = json!({"model":model,"messages":[{"role":"user","content":"w6 ".repeat(518)}],"stream":stream});
+            let (status, body) = post(app.clone(), payload).await;
+            assert_eq!(status, StatusCode::BAD_REQUEST, "mtp={mtp}: {body}");
+            assert_eq!(
+                serde_json::from_str::<Value>(&body).unwrap()["error"]["code"],
+                "context_length_exceeded"
+            );
+        }
+    }
+}
+
+#[tokio::test]
 async fn optional_defaults_and_sampling_controls_are_forwarded() {
     let (app, requests) = script_app("okay");
     let payload = json!({"model":"test-model","messages":[{"role":"developer","content":"Instructions"},{"role":"user","content":"Hi"}],"max_tokens":null,"max_completion_tokens":24,"temperature":null,"top_p":null,"stream":null,"stream_options":null,"n":1,"store":false,"logprobs":false,"top_logprobs":0,"response_format":{"type":"text"},"modalities":["text"],"frequency_penalty":1.5,"presence_penalty":-0.5,"logit_bias":{"23":40},"seed":-1,"user":"local","metadata":{"project":"demo"},"service_tier":"auto","reasoning_effort":"low"});
@@ -517,6 +609,10 @@ async fn optional_defaults_and_sampling_controls_are_forwarded() {
 async fn invalid_schema_options_fail_before_generation_with_parameter_errors() {
     let baseline = json!({"model":"test-model","messages":[{"role":"user","content":"hi"}]});
     for (field, value) in [
+        ("max_tokens", json!(0)),
+        ("max_completion_tokens", json!(-1)),
+        ("max_tokens", json!(1.5)),
+        ("max_tokens", json!("8192")),
         ("tool_choice", json!("required")),
         ("stream_options", json!({"include_usage":true})),
         ("frequency_penalty", json!(2.1)),
@@ -630,10 +726,9 @@ async fn context_overflow_is_400_before_streaming_or_generation() {
         fn model_id(&self) -> &str {
             "test-model"
         }
-        fn validate_request(&self, _: &GenerationRequest) -> Result<()> {
+        fn prepare_request(&self, _: &mut GenerationRequest) -> Result<()> {
             Err(crate::chat::ContextLengthExceeded {
-                prompt_tokens: 8000,
-                max_tokens: 2048,
+                prompt_tokens: 8192,
                 capacity: 8192,
             }
             .into())
@@ -674,6 +769,9 @@ async fn context_overflow_is_400_before_streaming_or_generation() {
 async fn opencode_sdk_tool_round_trip() {
     struct RoundTripEngine;
     impl TextGenerator for RoundTripEngine {
+        fn prepare_request(&self, _: &mut GenerationRequest) -> Result<()> {
+            Ok(())
+        }
         fn model_id(&self) -> &str {
             "test-model"
         }
