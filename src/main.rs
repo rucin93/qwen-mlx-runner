@@ -384,6 +384,7 @@ fn main() -> Result<()> {
                 messages: vec![Message {
                     role: "user".into(),
                     content: prompt,
+                    ..Default::default()
                 }],
                 max_tokens,
                 temperature,
@@ -391,6 +392,7 @@ fn main() -> Result<()> {
                 top_k,
                 seed,
                 enable_thinking: thinking,
+                ..Default::default()
             };
             let mut stream = |text: &str| {
                 if text.is_empty() {

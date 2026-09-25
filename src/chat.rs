@@ -1,18 +1,31 @@
 use std::fs;
 use std::path::Path;
 
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, anyhow, bail, ensure};
 use minijinja::{Environment, context};
 use serde::{Deserialize, Serialize};
 use tokenizers::Tokenizer;
 
-#[derive(Clone, Debug, Deserialize, Serialize)]
+pub mod sampling;
+pub mod tools;
+pub use sampling::SamplingOptions;
+pub use tools::{ToolCall, ToolChoice, ToolConfig, ToolEvent, ToolFunction, ToolOutputParser};
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
 pub struct Message {
     pub role: String,
     pub content: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub name: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tool_calls: Vec<ToolCall>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool_call_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reasoning_content: Option<String>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct GenerationRequest {
     pub messages: Vec<Message>,
     pub max_tokens: usize,
@@ -21,6 +34,15 @@ pub struct GenerationRequest {
     pub top_k: usize,
     pub seed: u64,
     pub enable_thinking: bool,
+    pub tools: ToolConfig,
+    pub sampling: SamplingOptions,
+    pub reasoning_effort: Option<String>,
+}
+
+impl GenerationRequest {
+    pub fn preserve_special_tokens(&self) -> bool {
+        self.enable_thinking || self.tools.enabled()
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -40,7 +62,31 @@ pub trait TextGenerator: Send {
         on_text: &mut dyn FnMut(&str) -> bool,
     ) -> Result<GenerationOutput>;
     fn model_id(&self) -> &str;
+    fn validate_request(&self, _request: &GenerationRequest) -> Result<()> {
+        Ok(())
+    }
+    /// Allows HTTP validation before queuing an otherwise expensive generation.
+    fn vocab_size(&self) -> Option<usize> {
+        None
+    }
 }
+
+#[derive(Debug)]
+pub struct ContextLengthExceeded {
+    pub prompt_tokens: usize,
+    pub max_tokens: usize,
+    pub capacity: usize,
+}
+impl std::fmt::Display for ContextLengthExceeded {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "prompt ({} tokens) plus max_tokens ({}) exceeds context {}",
+            self.prompt_tokens, self.max_tokens, self.capacity
+        )
+    }
+}
+impl std::error::Error for ContextLengthExceeded {}
 
 pub struct ChatTokenizer {
     tokenizer: Tokenizer,
@@ -48,6 +94,24 @@ pub struct ChatTokenizer {
 }
 
 impl ChatTokenizer {
+    pub fn validate_request(&self, request: &GenerationRequest, capacity: usize) -> Result<()> {
+        anyhow::ensure!(request.max_tokens > 0, "max_tokens must be positive");
+        let tokens = self.encode(&self.render_request(request)?)?;
+        anyhow::ensure!(!tokens.is_empty(), "empty prompt after tokenization");
+        if tokens
+            .len()
+            .checked_add(request.max_tokens)
+            .is_none_or(|n| n > capacity)
+        {
+            return Err(ContextLengthExceeded {
+                prompt_tokens: tokens.len(),
+                max_tokens: request.max_tokens,
+                capacity,
+            }
+            .into());
+        }
+        Ok(())
+    }
     pub fn load(directory: &Path) -> Result<Self> {
         let tokenizer = Tokenizer::from_file(directory.join("tokenizer.json"))
             .map_err(|e| anyhow!("cannot load tokenizer.json: {e}"))?;
@@ -113,6 +177,147 @@ impl ChatTokenizer {
                 add_vision_id => false,
             })
             .context("checkpoint chat template rejected messages")
+    }
+
+    /// Adapt API history to the checkpoint's unchanged template. OpenAI stores
+    /// historical function arguments as JSON strings; Qwen's template iterates
+    /// their object items. Keep the public messages intact and normalize a copy.
+    pub fn render_request(&self, request: &GenerationRequest) -> Result<String> {
+        if let Some(effort) = request.reasoning_effort.as_deref() {
+            ensure!(
+                matches!(effort, "none" | "low" | "medium" | "xhigh"),
+                "unsupported checkpoint reasoning effort {effort}"
+            );
+        }
+        let messages = Self::request_messages(request)?;
+        let preserve_thinking = request.messages.iter().any(|message| {
+            message
+                .reasoning_content
+                .as_ref()
+                .is_some_and(|reasoning| !reasoning.is_empty())
+        });
+        let mut values = serde_json::json!({
+            "messages": messages,
+            "add_generation_prompt": true,
+            "enable_thinking": request.enable_thinking
+                && request.reasoning_effort.as_deref() != Some("none"),
+            "preserve_thinking": preserve_thinking,
+            "tools": request.tools.effective_definitions(),
+            "add_vision_id": false,
+        });
+        // An absent effort must be undefined, not JSON null: the checkpoint's
+        // Jinja default filter supplies xhigh only for an undefined variable.
+        if let Some(effort) = &request.reasoning_effort {
+            values["reasoning_effort"] = serde_json::json!(effort);
+        }
+        let mut env = Self::environment();
+        env.add_template("chat", &self.template)
+            .context("invalid checkpoint chat template")?;
+        env.get_template("chat")?
+            .render(values)
+            .context("checkpoint chat template rejected messages")
+    }
+
+    fn request_messages(request: &GenerationRequest) -> Result<Vec<serde_json::Value>> {
+        let prefix = request
+            .messages
+            .iter()
+            .take_while(|message| matches!(message.role.as_str(), "system" | "developer"))
+            .count();
+        ensure!(
+            request.messages[prefix..]
+                .iter()
+                .all(|message| !matches!(message.role.as_str(), "system" | "developer")),
+            "system and developer instructions must precede conversation messages"
+        );
+        let mut rendered = Vec::with_capacity(request.messages.len() + 1);
+        let mut functions = std::collections::HashMap::new();
+        for message in &request.messages {
+            let mut value = serde_json::to_value(message)?;
+            let mut annotations = Vec::new();
+            let inferred_name = message
+                .tool_call_id
+                .as_ref()
+                .and_then(|id| functions.get(id));
+            if let Some(name) = message.name.as_ref().or(inferred_name) {
+                annotations.push(format!("[name: {name}]"));
+            }
+            if let Some(id) = &message.tool_call_id {
+                annotations.push(format!("[tool_call_id: {id}]"));
+            }
+            for (index, call) in message.tool_calls.iter().enumerate() {
+                let arguments: serde_json::Value = serde_json::from_str(&call.function.arguments)
+                    .with_context(|| {
+                    format!("tool call {} has invalid JSON arguments", call.id)
+                })?;
+                ensure!(
+                    arguments.is_object(),
+                    "tool call {} arguments must be a JSON object",
+                    call.id
+                );
+                value["tool_calls"][index]["function"]["arguments"] = arguments;
+                // Stock Qwen templates ignore call IDs. Keep ordered bindings
+                // in text so parallel replies can retain their association,
+                // including two invocations of the same function.
+                annotations.push(format!(
+                    "[tool_call_id: {}; function: {}]",
+                    call.id, call.function.name
+                ));
+                functions.insert(call.id.clone(), call.function.name.clone());
+            }
+            if !annotations.is_empty() {
+                annotations.push(message.content.clone());
+                value["content"] = serde_json::json!(annotations.join("\n"));
+            }
+            rendered.push(value);
+        }
+
+        // Qwen permits one initial system message. Keep system instructions
+        // before developer instructions, with stable order within each role.
+        // A single ordinary system message remains byte-for-byte unchanged.
+        if prefix > 0 {
+            let mut parts = rendered[..prefix]
+                .iter()
+                .filter(|message| message["role"] == "system")
+                .map(|message| message["content"].as_str().unwrap_or_default().to_owned())
+                .collect::<Vec<_>>();
+            let developer = rendered[..prefix]
+                .iter()
+                .filter(|message| message["role"] == "developer")
+                .map(|message| message["content"].as_str().unwrap_or_default())
+                .collect::<Vec<_>>()
+                .join("\n\n");
+            if !developer.is_empty() {
+                parts.push(format!(
+                    "[Developer instructions; follow system instructions if they conflict]\n{developer}"
+                ));
+            }
+            if prefix != 1 || request.messages[0].role != "system" {
+                rendered.splice(
+                    ..prefix,
+                    [serde_json::json!({"role":"system", "content":parts.join("\n\n")})],
+                );
+            }
+        }
+        if let Some(instruction) = request.tools.instruction() {
+            if let Some(first) = rendered
+                .first_mut()
+                .filter(|message| message["role"] == "system")
+            {
+                let content = first["content"].as_str().unwrap_or_default();
+                first["content"] = serde_json::json!(if content.is_empty() {
+                    instruction
+                } else {
+                    format!("{content}\n\n{instruction}")
+                });
+            } else {
+                rendered.insert(
+                    0,
+                    serde_json::json!({"role":"system", "content":instruction}),
+                );
+            }
+        }
+        Ok(rendered)
     }
 
     pub fn encode(&self, text: &str) -> Result<Vec<u32>> {
@@ -251,6 +456,35 @@ mod tests {
     }
 
     #[test]
+    fn request_preflight_accounts_for_rendered_prompt_and_output_budget() {
+        let t = fixture("{{ messages[0].content }}");
+        let mut request = GenerationRequest {
+            messages: vec![Message {
+                role: "user".into(),
+                content: "hello".into(),
+                ..Default::default()
+            }],
+            max_tokens: 4,
+            ..Default::default()
+        };
+        t.validate_request(&request, 5).unwrap();
+        let error = t.validate_request(&request, 4).unwrap_err();
+        let detail = error.downcast_ref::<ContextLengthExceeded>().unwrap();
+        assert_eq!(detail.prompt_tokens, 1);
+        assert_eq!(detail.max_tokens, 4);
+        assert_eq!(detail.capacity, 4);
+        request.max_tokens = usize::MAX;
+        assert!(
+            t.validate_request(&request, usize::MAX)
+                .unwrap_err()
+                .downcast_ref::<ContextLengthExceeded>()
+                .is_some()
+        );
+        request.max_tokens = 0;
+        assert!(t.validate_request(&request, 5).is_err());
+    }
+
+    #[test]
     fn renders_checkpoint_template_without_rewriting_it() {
         let t = fixture(
             "{{ messages[0].role }}:{{ messages[0].content }}:{{ enable_thinking }}:{{ preserve_thinking }}:{{ add_generation_prompt }}",
@@ -260,6 +494,7 @@ mod tests {
                 &[Message {
                     role: "user".into(),
                     content: "hello".into(),
+                    ..Default::default()
                 }],
                 false,
             )
@@ -304,7 +539,8 @@ mod tests {
             chat.render(
                 &[Message {
                     role: "user".into(),
-                    content: "hello".into()
+                    content: "hello".into(),
+                    ..Default::default()
                 }],
                 false
             )
@@ -321,6 +557,7 @@ mod tests {
         let messages = [Message {
             role: "user".into(),
             content: "Hello".into(),
+            ..Default::default()
         }];
         assert_eq!(
             chat.render(&messages, false).unwrap(),
@@ -333,18 +570,202 @@ mod tests {
             Message {
                 role: "user".into(),
                 content: "First".into(),
+                ..Default::default()
             },
             Message {
                 role: "assistant".into(),
                 content: "Answer".into(),
+                ..Default::default()
             },
             Message {
                 role: "user".into(),
                 content: "Next".into(),
+                ..Default::default()
             },
         ];
         let rendered = chat.render(&history, false).unwrap();
         assert!(rendered.contains("<|im_start|>assistant\nAnswer<|im_end|>"));
+    }
+
+    #[test]
+    fn request_render_keeps_plain_checkpoint_prompts_unchanged() {
+        let chat = fixture(include_str!("../tests/fixtures/qwen38-template.jinja"));
+        for thinking in [false, true] {
+            let messages: Vec<Message> = serde_json::from_value(serde_json::json!([
+                {"role":"system","content":"Be concise."},
+                {"role":"user","content":"Hello"},
+                {"role":"assistant","content":"Hi"},
+                {"role":"user","content":"Next"}
+            ]))
+            .unwrap();
+            let old = chat.render(&messages, thinking).unwrap();
+            let request = GenerationRequest {
+                messages,
+                enable_thinking: thinking,
+                ..Default::default()
+            };
+            assert_eq!(chat.render_request(&request).unwrap(), old);
+            assert_eq!(request.preserve_special_tokens(), thinking);
+        }
+    }
+
+    #[test]
+    fn request_render_normalizes_instruction_prefix_and_preserves_names_and_reasoning() {
+        let chat = fixture(include_str!("../tests/fixtures/qwen38-template.jinja"));
+        let messages = serde_json::from_value(serde_json::json!([
+            {"role":"developer","content":"Use JSON."},
+            {"role":"system","content":"Protect private data."},
+            {"role":"developer","content":"Keep fields short."},
+            {"role":"user","content":"First","name":"alice"},
+            {"role":"assistant","content":"Answer","reasoning_content":"Check the units."},
+            {"role":"user","content":"Next","name":"bob"}
+        ]))
+        .unwrap();
+        let request = GenerationRequest {
+            messages,
+            ..Default::default()
+        };
+        let rendered = chat.render_request(&request).unwrap();
+        assert_eq!(rendered.matches("<|im_start|>system\n").count(), 1);
+        assert!(
+            rendered.find("Protect private data.").unwrap() < rendered.find("Use JSON.").unwrap()
+        );
+        assert!(rendered.contains("Keep fields short."));
+        assert!(rendered.contains("[name: alice]\nFirst"));
+        assert!(rendered.contains("[name: bob]\nNext"));
+        assert!(rendered.contains("<think>\nCheck the units.\n</think>\n\nAnswer"));
+        for role in ["system", "developer"] {
+            let messages = serde_json::from_value(serde_json::json!([
+                {"role":"user","content":"Hello"}, {"role":role,"content":"Late instruction"}
+            ]))
+            .unwrap();
+            assert!(
+                chat.render_request(&GenerationRequest {
+                    messages,
+                    ..Default::default()
+                })
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn request_render_supports_checkpoint_reasoning_efforts_and_rejects_unknown_values() {
+        let chat = fixture(include_str!("../tests/fixtures/qwen38-template.jinja"));
+        for effort in ["none", "low", "medium", "xhigh"] {
+            let request = GenerationRequest {
+                messages: serde_json::from_value(
+                    serde_json::json!([{"role":"user","content":"Hello"}]),
+                )
+                .unwrap(),
+                enable_thinking: effort != "none",
+                reasoning_effort: Some(effort.into()),
+                ..Default::default()
+            };
+            let rendered = chat.render_request(&request).unwrap();
+            if effort == "none" {
+                assert!(rendered.ends_with("<think>\n\n</think>\n\n"));
+            } else {
+                assert!(rendered.ends_with("<think>\n"));
+                if effort != "medium" {
+                    assert!(rendered.contains(&format!("Reasoning effort is set to {effort}.")));
+                }
+            }
+        }
+        let request = GenerationRequest {
+            messages: serde_json::from_value(
+                serde_json::json!([{"role":"user","content":"Hello"}]),
+            )
+            .unwrap(),
+            enable_thinking: true,
+            reasoning_effort: Some("unsupported".into()),
+            ..Default::default()
+        };
+        assert!(chat.render_request(&request).is_err());
+    }
+
+    #[test]
+    fn request_render_round_trips_tool_arguments_and_tool_results() {
+        let chat = fixture(include_str!("../tests/fixtures/qwen38-template.jinja"));
+        let messages = serde_json::from_value(serde_json::json!([
+            {"role":"user","content":"Check Warsaw weather"},
+            {"role":"assistant","content":"","reasoning_content":"Use the weather function.","tool_calls":[
+                {"id":"call_weather","type":"function","function":{"name":"weather","arguments":"{\"city\":\"Warsaw\",\"days\":2}"}}
+            ]},
+            {"role":"tool","content":"Sunny","name":"weather","tool_call_id":"call_weather"}
+        ])).unwrap();
+        let rendered = chat
+            .render_request(&GenerationRequest {
+                messages,
+                ..Default::default()
+            })
+            .unwrap();
+        assert!(rendered.contains("<function=weather>\n"));
+        assert!(rendered.contains("<parameter=city>\nWarsaw\n</parameter>"));
+        assert!(rendered.contains("<parameter=days>\n2\n</parameter>"));
+        assert!(rendered.contains("Use the weather function."));
+        assert!(rendered.contains("[tool_call_id: call_weather; function: weather]"));
+        assert!(rendered.contains("[tool_call_id: call_weather]"));
+        assert!(rendered.contains("[name: weather]"));
+        assert!(rendered.contains("<tool_response>\n"));
+        assert!(rendered.contains("Sunny"));
+        for arguments in ["not json", "[]", "null", "42"] {
+            let messages = serde_json::from_value(serde_json::json!([
+                {"role":"user","content":"Run it"},
+                {"role":"assistant","content":"","tool_calls":[
+                    {"id":"call_bad","type":"function","function":{"name":"weather","arguments":arguments}}
+                ]}
+            ])).unwrap();
+            assert!(
+                chat.render_request(&GenerationRequest {
+                    messages,
+                    ..Default::default()
+                })
+                .is_err()
+            );
+        }
+    }
+
+    #[test]
+    fn request_render_passes_effective_tools_and_forced_policy_to_checkpoint() {
+        let chat = fixture(include_str!("../tests/fixtures/qwen38-template.jinja"));
+        let definitions = serde_json::json!([
+            {"type":"function","function":{"name":"weather","parameters":{"type":"object","properties":{"city":{"type":"string"}}}}},
+            {"type":"function","function":{"name":"clock","parameters":{"type":"object","properties":{}}}}
+        ]);
+        let messages = || {
+            serde_json::from_value(serde_json::json!([{"role":"user","content":"Hello"}])).unwrap()
+        };
+        let plain = chat
+            .render_request(&GenerationRequest {
+                messages: messages(),
+                ..Default::default()
+            })
+            .unwrap();
+        let none =
+            tools::ToolConfig::parse(Some(&definitions), Some(&serde_json::json!("none")), None)
+                .unwrap();
+        let disabled = GenerationRequest {
+            messages: messages(),
+            tools: none,
+            ..Default::default()
+        };
+        assert_eq!(chat.render_request(&disabled).unwrap(), plain);
+        assert!(!disabled.preserve_special_tokens());
+        let force = serde_json::json!({"type":"function","function":{"name":"weather"}});
+        let forced = tools::ToolConfig::parse(Some(&definitions), Some(&force), None).unwrap();
+        let instruction = forced.instruction().unwrap();
+        let request = GenerationRequest {
+            messages: messages(),
+            tools: forced,
+            ..Default::default()
+        };
+        let rendered = chat.render_request(&request).unwrap();
+        assert!(rendered.contains("<tools>"));
+        assert!(rendered.contains("weather"));
+        assert!(!rendered.contains("\"clock\""));
+        assert!(rendered.contains(&instruction));
+        assert!(request.preserve_special_tokens());
     }
 
     #[test]

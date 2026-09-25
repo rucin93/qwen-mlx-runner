@@ -13,7 +13,10 @@ use anyhow::{Context, Result, bail, ensure};
 use serde::Serialize;
 
 use crate::{
-    chat::{ChatTokenizer, GenerationOutput, GenerationRequest, Sampler, TextGenerator},
+    chat::{
+        ChatTokenizer, GenerationOutput, GenerationRequest, Sampler, TextGenerator,
+        sampling::LogitProcessor,
+    },
     engine::{Engine, Mtp},
     speculative::{Distribution, DraftProposal, SamplingConfig, verify},
 };
@@ -140,11 +143,11 @@ impl MtpChatEngine {
             request.top_p.is_finite() && request.top_p > 0.0 && request.top_p <= 1.0,
             "invalid top_p"
         );
-        let prompt = self.tokenizer.encode(
-            &self
-                .tokenizer
-                .render(&request.messages, request.enable_thinking)?,
-        )?;
+        let mut processor =
+            LogitProcessor::new(request.sampling.clone(), self.engine.config().vocab_size)?;
+        let prompt = self
+            .tokenizer
+            .encode(&self.tokenizer.render_request(request)?)?;
         ensure!(!prompt.is_empty(), "empty prompt after tokenization");
         ensure!(
             prompt
@@ -213,7 +216,8 @@ impl MtpChatEngine {
         let mut output = OutputCollector::new(request.max_tokens);
         // The initial pending anchor is already a target sample. It has not yet
         // been consumed by the target, and so needs no speculative verification.
-        let mut anchor = Distribution::from_logits(&logits, config)?.sample(&mut rng)?;
+        let mut anchor =
+            Distribution::from_logits(&processor.process(&logits)?, config)?.sample(&mut rng)?;
         let keep_going = output.push(
             anchor,
             &self.tokenizer,
@@ -221,6 +225,9 @@ impl MtpChatEngine {
             &self.engine.config().eos_token_ids,
             on_text,
         )?;
+        if !output.token_ids.is_empty() {
+            processor.record(anchor)?;
+        }
         if keep_going && !use_mtp {
             while output.finish.is_none() {
                 if !on_text("") {
@@ -233,14 +240,20 @@ impl MtpChatEngine {
                 stats
                     .target_decode_timing
                     .record(self.engine.last_frame_timing());
-                anchor = Distribution::from_logits(&logits, config)?.sample(&mut rng)?;
-                if !output.push(
+                anchor = Distribution::from_logits(&processor.process(&logits)?, config)?
+                    .sample(&mut rng)?;
+                let previous_count = output.token_ids.len();
+                let keep_going = output.push(
                     anchor,
                     &self.tokenizer,
                     request,
                     &self.engine.config().eos_token_ids,
                     on_text,
-                )? {
+                )?;
+                if output.token_ids.len() > previous_count {
+                    processor.record(anchor)?;
+                }
+                if !keep_going {
                     break;
                 }
             }
@@ -269,15 +282,18 @@ impl MtpChatEngine {
                 let started = Instant::now();
                 let mut drafts = Vec::with_capacity(width - 1);
                 let mut inputs = Vec::with_capacity(width);
+                let mut hypothetical = processor.clone();
                 inputs.push(anchor);
                 for index in 0..width - 1 {
-                    let distribution = Distribution::from_logits(&seed.logits, config)?;
+                    let distribution =
+                        Distribution::from_logits(&hypothetical.process(&seed.logits)?, config)?;
                     let token = distribution.sample(&mut draft_rng)?;
                     drafts.push(DraftProposal {
                         token,
                         distribution,
                     });
                     inputs.push(token);
+                    hypothetical.record(token)?;
                     if index + 1 < width - 1 {
                         seed = self.mtp.forward(token, &seed.hidden, true)?;
                     }
@@ -288,7 +304,7 @@ impl MtpChatEngine {
                 stats.round_widths.push(width);
 
                 let started = Instant::now();
-                let block = self.engine.verify_block(&inputs)?;
+                let mut block = self.engine.verify_block(&inputs)?;
                 stats.target_seconds += started.elapsed().as_secs_f64();
                 stats
                     .target_decode_timing
@@ -298,6 +314,7 @@ impl MtpChatEngine {
                     "target verification base changed"
                 );
                 let started = Instant::now();
+                processor.process_block(&inputs[1..], &mut block.logits)?;
                 let verified = verify(&drafts, &block.logits, config, &mut rng)?;
                 stats.verification_seconds += started.elapsed().as_secs_f64();
                 stats.accepted_drafts += verified.accepted_drafts;
@@ -305,13 +322,18 @@ impl MtpChatEngine {
                 self.engine.commit_block_prefix(verified.consumed_inputs)?;
                 stats.rollback_seconds += started.elapsed().as_secs_f64();
                 for &token in &verified.tokens {
-                    if !output.push(
+                    let previous_count = output.token_ids.len();
+                    let keep_going = output.push(
                         token,
                         &self.tokenizer,
                         request,
                         &self.engine.config().eos_token_ids,
                         on_text,
-                    )? {
+                    )?;
+                    if output.token_ids.len() > previous_count {
+                        processor.record(token)?;
+                    }
+                    if !keep_going {
                         break;
                     }
                 }
@@ -352,7 +374,7 @@ impl MtpChatEngine {
                 );
             }
         }
-        output.flush(&self.tokenizer, request.enable_thinking, on_text)?;
+        output.flush(&self.tokenizer, request.preserve_special_tokens(), on_text)?;
         stats.completion_tokens = output.token_ids.len();
         stats.decode_seconds = decode_started.elapsed().as_secs_f64();
         stats.time_to_first_token_seconds = output
@@ -383,6 +405,16 @@ impl TextGenerator for MtpChatEngine {
 
     fn model_id(&self) -> &str {
         &self.model_id
+    }
+
+    fn vocab_size(&self) -> Option<usize> {
+        Some(self.engine.config().vocab_size)
+    }
+
+    fn validate_request(&self, request: &GenerationRequest) -> Result<()> {
+        request.sampling.validate(self.engine.config().vocab_size)?;
+        self.tokenizer
+            .validate_request(request, self.engine.context_capacity())
     }
 }
 
@@ -429,7 +461,7 @@ impl OutputCollector {
             return Ok(false);
         }
         self.text_tokens.push(token);
-        let decoded = if request.enable_thinking {
+        let decoded = if request.preserve_special_tokens() {
             tokenizer.decode_with_special_tokens(&self.text_tokens)?
         } else {
             tokenizer.decode(&self.text_tokens)?
@@ -456,13 +488,13 @@ impl OutputCollector {
     fn flush(
         &mut self,
         tokenizer: &ChatTokenizer,
-        thinking: bool,
+        preserve_special_tokens: bool,
         on_text: &mut dyn FnMut(&str) -> bool,
     ) -> Result<()> {
         if self.finish == Some("cancelled") {
             return Ok(());
         }
-        let decoded = if thinking {
+        let decoded = if preserve_special_tokens {
             tokenizer.decode_with_special_tokens(&self.text_tokens)?
         } else {
             tokenizer.decode(&self.text_tokens)?
@@ -490,6 +522,7 @@ mod tests {
             messages: vec![Message {
                 role: "user".into(),
                 content: "w6 w7".into(),
+                ..Default::default()
             }],
             max_tokens,
             temperature: 0.0,
@@ -497,6 +530,7 @@ mod tests {
             top_k: 0,
             seed: 42,
             enable_thinking: false,
+            ..Default::default()
         }
     }
 
@@ -504,6 +538,67 @@ mod tests {
         Path::new(env!("CARGO_MANIFEST_DIR"))
             .join("tests/fixtures")
             .join(name)
+    }
+
+    fn zero_head_fixture() -> tempfile::TempDir {
+        let target = tempfile::tempdir().unwrap();
+        for name in ["config.json", "tokenizer.json", "chat_template.jinja"] {
+            std::fs::copy(fixture("tiny-q4").join(name), target.path().join(name)).unwrap();
+        }
+        let mut weights = std::fs::read(fixture("tiny-q4").join("model.safetensors")).unwrap();
+        let header_size = u64::from_le_bytes(weights[..8].try_into().unwrap()) as usize;
+        let header: serde_json::Value =
+            serde_json::from_slice(&weights[8..8 + header_size]).unwrap();
+        let mut changed = 0;
+        for (name, tensor) in header.as_object().unwrap() {
+            if name.starts_with("language_model.lm_head.") {
+                let start = tensor["data_offsets"][0].as_u64().unwrap() as usize;
+                let end = tensor["data_offsets"][1].as_u64().unwrap() as usize;
+                weights[8 + header_size + start..8 + header_size + end].fill(0);
+                changed += 1;
+            }
+        }
+        assert_eq!(changed, 3);
+        std::fs::write(target.path().join("model.safetensors"), weights).unwrap();
+        target
+    }
+
+    #[test]
+    #[ignore = "requires a real Apple Metal GPU"]
+    fn sampling_penalties_match_target_for_every_mtp_width_and_first_anchor() {
+        use crate::{chat::sampling::SamplingOptions, engine::ChatEngine};
+        use std::collections::BTreeMap;
+
+        let target = zero_head_fixture();
+        let mut request = request(11);
+        request.sampling = SamplingOptions {
+            frequency_penalty: 2.0,
+            presence_penalty: 1.0,
+            logit_bias: BTreeMap::from([(6, 20.0), (7, 20.0), (8, 20.0)]),
+        };
+        // Prompt contains w6/w7; only completion counts may affect this cycle.
+        let expected_ids = vec![6, 7, 8, 6, 7, 8, 6, 7, 8, 6, 7];
+        let mut baseline = ChatEngine::load(target.path(), 128).unwrap();
+        let expected = baseline.generate(&request, &mut |_| true).unwrap();
+        for width in 1..=4 {
+            let mut mtp =
+                MtpChatEngine::load(target.path(), &fixture("tiny-mtp"), 128, width).unwrap();
+            let (actual, stats) = mtp.generate_with_stats(&request, &mut |_| true).unwrap();
+            assert_eq!(stats.token_ids, expected_ids, "width={width}");
+            assert_eq!(actual.text, expected.text, "width={width}");
+            assert_eq!(actual.completion_tokens, 11);
+            assert_eq!(actual.finish_reason, "length");
+            assert_eq!(stats.accepted_drafts, stats.proposed_drafts);
+            let (_, reference) = mtp
+                .generate_reference_with_stats(&request, &mut |_| true)
+                .unwrap();
+            assert_eq!(reference.token_ids, expected_ids, "reference width={width}");
+            let (_, repeated) = mtp.generate_with_stats(&request, &mut |_| true).unwrap();
+            assert_eq!(
+                repeated.token_ids, expected_ids,
+                "request-local counts width={width}"
+            );
+        }
     }
 
     #[test]
@@ -645,25 +740,7 @@ mod tests {
         // zero. The target's recurrent/attention layers and MTP layer remain
         // nontrivial. This exercises every all-accepted repair branch without
         // depending on the random fixture drafter's accidental acceptance rate.
-        let target = tempfile::tempdir().unwrap();
-        for name in ["config.json", "tokenizer.json", "chat_template.jinja"] {
-            std::fs::copy(fixture("tiny-q4").join(name), target.path().join(name)).unwrap();
-        }
-        let mut weights = std::fs::read(fixture("tiny-q4").join("model.safetensors")).unwrap();
-        let header_size = u64::from_le_bytes(weights[..8].try_into().unwrap()) as usize;
-        let header: serde_json::Value =
-            serde_json::from_slice(&weights[8..8 + header_size]).unwrap();
-        let mut changed = 0;
-        for (name, tensor) in header.as_object().unwrap() {
-            if name.starts_with("language_model.lm_head.") {
-                let start = tensor["data_offsets"][0].as_u64().unwrap() as usize;
-                let end = tensor["data_offsets"][1].as_u64().unwrap() as usize;
-                weights[8 + header_size + start..8 + header_size + end].fill(0);
-                changed += 1;
-            }
-        }
-        assert_eq!(changed, 3);
-        std::fs::write(target.path().join("model.safetensors"), weights).unwrap();
+        let target = zero_head_fixture();
         let tokenizer = ChatTokenizer::load(target.path()).unwrap();
         let request = request(20);
         let prompt_len = tokenizer
