@@ -52,8 +52,10 @@ It retains packed Q4 weights, normalizes activations into FP16 and accumulates
 in FP32. A compensated variant uses otherwise unused matrix-tile positions for
 the rounding residual. This changes arithmetic and remains outside inference;
 its numerical and timing reports must be evaluated separately from model quality.
-Compensated variants pass the local synthetic error checks, but repeated M1
-timings do not establish a stable speedup. An M5 result is still required.
+The user's M5 Pro results reject the native compensated implementation:
+all six configuration medians are 1.21–2.30 times slower than R2/R4, despite
+passing the synthetic numerical checks. It remains an isolated experiment;
+the measured R2 configuration continues to serve the model.
 
 Earlier evidence includes the [16.13 tokens/s ordinary-target measurement](docs/m5-pro.md),
 the [26.77 tokens/s first MTP result](docs/m5-mtp-v0.6.md), and the

@@ -1,5 +1,11 @@
 # Group-affine mixed-precision experiment
 
+**M5 result: reject `affine_native_q4_m16_packed` for inference integration.**
+The user-supplied 0.6.6 reports pass all synthetic numerical checks but lose
+every configuration's median against production R2/R4 by 1.21–2.30 times.
+See the audited M5 results below. The experiment does not improve the server
+or establish the 32 tokens/s target.
+
 ## Objective and boundaries
 
 The user requested an algorithm that processes tokens more efficiently than
@@ -187,8 +193,8 @@ The expanded-FP16 candidates lose every configuration's median comparison;
 native single-FP16 has some faster medians but fails the cancellation error
 criterion above. Neither observation justifies replacing the production path.
 Both complete timing reports are retained, including the unfavorable repeat.
-There is no M5 result for this algorithm yet, and no full-model integration or
-32 tokens/s claim.
+The subsequent M5 measurement below also rejects this implementation. There
+is no full-model integration or 32 tokens/s claim.
 
 All source fingerprints in these three JSON files match the published probe,
 three shaders and production scalar control. The existing Rust test suite also
@@ -204,7 +210,9 @@ cargo test --locked --all-targets -- --ignored --test-threads=1
 cargo fmt --all -- --check
 ```
 
-For a focused M5 measurement, use the same candidate in both invocations:
+The focused M5 measurement below was produced with the same candidate in both
+invocations; these commands are retained for reproduction, not a request to
+repeat the rejected experiment:
 
 ```sh
 cargo build --release --locked --example block_affine_fp16_probe
@@ -215,6 +223,90 @@ cargo build --release --locked --example block_affine_fp16_probe
 ```
 
 This requires no checkpoint download or model loading. It checks 100 cases
-and measures all six B3/B4 matrix shapes against R2/R4. A target-device win and
-passing numerical checks would justify the next step: opt-in integration and
-real prompt, state and output-quality comparisons.
+and measures all six B3/B4 matrix shapes against R2/R4. The measured outcome
+does not justify proceeding to inference integration.
+
+## User M5 Pro result, audited 2026-09-25
+
+Raw files are preserved without edits:
+
+- [Numerical check](benchmarks/m5-pro-v0.6.6-affine-selftest-user.json),
+  SHA-256 `53446559a8ce472638f6d0b3d31261acd6c58b09a6996d33ca5d6a1ebcb0b4d6`.
+- [Paired timing sweep](benchmarks/m5-pro-v0.6.6-affine-sweep-user.json),
+  SHA-256 `71e4b9dd2d77843aa7cfff015c8cac9b5614ff2797b7dc3d2c4ae46862ca8ef7`.
+
+Both identify Apple M5 Pro, macOS 26.6.2, version 0.6.6 and the exact
+`affine_native_q4_m16_packed` candidate. All five source-file fingerprints
+and the combined compiled-source fingerprint match commit `aa9d04e` and the
+archived M1 reports. This comparison therefore tests the same algorithm.
+
+### Numerical result
+
+All 100 unique cases and 3,600 output checks pass the preparation, algorithm,
+analytic-bound and original-approximation gates. The maximum error divided by
+the sum of absolute affine components is `4.138664815e-8`. The maximum absolute
+error for the `q=0,bias=0` diagnostic is `8.188653737e-7`, below its `1e-6`
+limit. Zero-input and exact-cancellation cases produce exact zero.
+
+These are bounded synthetic checks, not a model-quality or greedy-equivalence
+evaluation. In particular, the large-input `wide_exponents` fixtures have
+maximum absolute error about `1.012689`; the small normalized metric must not
+be presented as an absolute-error bound for every output. Floating-point
+reduction order also differs from R2/R4.
+
+### Timing result
+
+| Batch | Matrix rows × columns | R2/R4 median | Candidate median | Candidate slowdown | Candidate faster pairs |
+|---|---:|---:|---:|---:|---:|
+| 3 | 17408 × 5120 | 0.256771 ms | 0.523625 ms | **2.039×** | 0/24 |
+| 3 | 5120 × 17408 | 0.236500 ms | 0.543958 ms | **2.300×** | 0/24 |
+| 3 | 248320 × 5120 | 2.894313 ms | 4.786437 ms | **1.654×** | 0/24 |
+| 4 | 17408 × 5120 | 0.316375 ms | 0.414833 ms | **1.311×** | 2/24 |
+| 4 | 5120 × 17408 | 0.380833 ms | 0.544938 ms | **1.431×** | 0/24 |
+| 4 | 248320 × 5120 | 4.032688 ms | 4.859542 ms | **1.205×** | 0/24 |
+
+All 144 pairs and 288 finite positive GPU durations reproduce their reported
+medians, paired ratios and win counts. Every configuration also loses by
+total elapsed GPU time, separately in AB and BA order, and in each half of its
+sample set. The only two winning pairs occur in B4/up when the baseline spikes
+to 0.460708 and 0.473917 ms; the candidate is 0.413500 and 0.408250 ms. They do
+not establish a useful fast path. All 12 recorded power/thermal snapshots show
+Low Power Mode disabled and nominal thermal state; they do not prove constant
+GPU clocks or external power.
+
+The baseline is R2 for the two B3 MLP shapes and R4 elsewhere. Candidate time
+includes activation preparation; exact signed-Q4 repacking remains a load-time
+cost outside the measured interval. This rejects the candidate even under that
+favorable exclusion, without requiring a full-model regression run.
+
+### Interpretation and decision
+
+The lower-precision arithmetic works within the tested tolerances, but this
+implementation is slower on the target device. It is excluded from inference
+dispatch. Production weights already occupy packed Q4 storage: changing the
+activation operand to FP16 does not halve the dominant weight payload.
+
+The code performs a separate matrix operation for each 64-column quantization
+group, followed by per-group FP32 scaling and correction. That is 80 matrix
+operations per 16-row tile at 5120 columns, or 272 at 17408 columns. The packed
+correction also uses eight arithmetic channels for three or four output
+tokens, plus preparation and a final local merge. These are structural costs
+visible in the code. The supplied timing is for the whole command; it does
+**not** isolate those costs or establish which one dominates on M5, nor does
+it establish use or non-use of a particular hardware accelerator.
+
+Further kernel work needs a different execution strategy and a measured
+reduction in total cost, not another assumption that a smaller operand type is
+automatically faster. A future candidate must first beat the contemporaneous
+R2/R4 controls and satisfy its stated numerical checks before model-level
+integration. No conclusion about every possible FP16 or INT4 implementation
+follows from this rejected candidate.
+
+One bounded hypothesis for future investigation is a four-way split-K within
+a threadgroup: four SIMD-groups compute disjoint quantization groups, then
+reduce their FP32 partial results through 2 KB of threadgroup memory. This
+would shorten each SIMD-group's sequential loop from 80/272 to 20/68 iterations
+without changing Q4 weights. It does not reduce the total arithmetic and adds
+a reduction; its speed, numerical behavior and suitability are unmeasured.
+It is a possible execution change to test, not a result or a selected runtime
+strategy. The current experiment remains rejected regardless of that hypothesis.
