@@ -93,11 +93,10 @@ prompts; speculative acceptance is workload dependent.
 These sources document formats and algorithms. Implementation remains original
 Rust/Metal code; their inference runtimes are not linked or invoked.
 
-## Next architectural experiment
+## FP32 TensorOps experiment: rejected on M5 Pro
 
 The measured selective R2 gain leaves a substantial gap on the weaker prompts.
-A subsequent bounded experiment should evaluate
-Metal 4 TensorOps within our own shaders. Apple recommends this API for custom
+Version 0.6.5 evaluated Metal 4 TensorOps within our own shaders. Apple recommends this API for custom
 matrix workloads targeting M5's GPU Neural Accelerators, while noting that
 skinny decode matrices can remain bandwidth limited.
 [Apple M5 GPU guidance](https://developer.apple.com/videos/play/tech-talks/111432/).
@@ -107,9 +106,16 @@ Apple also documents custom quantization and cooperative tensor inputs.
 This offers a route for keeping the existing packed checkpoint and custom
 dequantization inside the Rust/Metal engine. Version 0.6.5 adds an isolated
 [FP32 TensorOps probe](tensorops-probe.md), outside the inference runtime.
-FP32 operand support, successful compilation on the target OS/SDK, numerical
-error and actual B3 speed must be evaluated separately. A matrix primitive may
-change reduction order even with FP32 inputs; it cannot inherit the scalar
-kernel's bitwise-equality claim. No FP16 conversion or weight requantization
-should be treated as an invisible optimization. Retain the measured scalar
-fallback and validate real greedy traces before choosing any new path.
+The user's M5 Pro reports confirm compilation and the complete 480-case
+numerical check, but reject every tested B3 matrix configuration. Candidate
+medians are 4.21–8.10 times slower than paired R2/R4 controls, and all 288
+individual pairs lose. Low Power Mode is off and thermal snapshots are nominal.
+See the [audited reports and decision](tensorops-probe.md#user-m5-pro-result).
+
+Keep R2 selected; do not spend a full-model measurement on this prototype.
+This result does not identify the cause of the slowdown or rule out all
+TensorOps layouts, other precisions or larger prefill batches. A different
+approach needs a new, bounded hypothesis. Lower-bit Bonsai checkpoints discussed
+with the user are another candidate, but changing model weights entails a
+separate quality comparison; no checkpoint substitution has been selected.
+Neither FP16 conversion nor weight requantization is an invisible optimization.

@@ -1,0 +1,6256 @@
+{
+  "accumulator_precision": "FP32",
+  "captures": [
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 6.3535026129102334e-9,
+        "max_error_over_sum_abs_terms": 7.933919911476196e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 3.8156637849340314e-7,
+        "max_error_over_sum_abs_terms": 1.0057520026687675e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 6.3535026129102334e-9,
+        "max_error_over_sum_abs_terms": 7.933919911476196e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 1.3649250902858512e-6,
+        "max_error_over_sum_abs_terms": 4.596096517987529e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 1.4295210348791443e-8,
+        "max_error_over_sum_abs_terms": 1.6394307800024537e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 2.381273702667386e-6,
+        "max_error_over_sum_abs_terms": 7.783329048245358e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 2.8320812361926073e-8,
+        "max_error_over_sum_abs_terms": 3.216842776656325e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 2.381273702667386e-6,
+        "max_error_over_sum_abs_terms": 7.783329048245358e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 5.92242486163741e-8,
+        "max_error_over_sum_abs_terms": 5.7683217251347e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 6.403045361480508e-6,
+        "max_error_over_sum_abs_terms": 4.293242127779764e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 5.92242486163741e-8,
+        "max_error_over_sum_abs_terms": 5.7683217251347e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 9.929226024496529e-6,
+        "max_error_over_sum_abs_terms": 9.674461325652821e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 2.5450198393173196e-7,
+        "max_error_over_sum_abs_terms": 2.3040316023843277e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.000010242900295054369,
+        "max_error_over_sum_abs_terms": 9.674461325652821e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 2.5450198393173196e-7,
+        "max_error_over_sum_abs_terms": 2.3040316023843277e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.000010242900295054369,
+        "max_error_over_sum_abs_terms": 9.674461325652821e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 3.899858867839612e-6,
+        "max_error_over_sum_abs_terms": 1.548540663915422e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 3.899858867839612e-6,
+        "max_error_over_sum_abs_terms": 1.548540663915422e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 4.856702609856711e-6,
+        "max_error_over_sum_abs_terms": 2.388519672540374e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.000020555280997314185,
+        "max_error_over_sum_abs_terms": 8.814061588149492e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 6.680134842432987e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 1.368994016814895e-6,
+        "max_error_over_sum_abs_terms": 7.331983243236741e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 6.680134842432987e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.00001151928439924177,
+        "max_error_over_sum_abs_terms": 2.5816425925175537e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 1.8271759273909187e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.00001151928439924177,
+        "max_error_over_sum_abs_terms": 2.5816425925175537e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 1.8271759273909187e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.00001151928439924177,
+        "max_error_over_sum_abs_terms": 2.5816425925175537e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 5.8469594783616685e-6,
+        "max_error_over_sum_abs_terms": 8.460051683813465e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.00002279371044267009,
+        "max_error_over_sum_abs_terms": 2.0772181515053163e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.00002279371044267009,
+        "max_error_over_sum_abs_terms": 2.0772181515053163e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.00002279371044267009,
+        "max_error_over_sum_abs_terms": 2.0772181515053163e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 7.221949545055395e-7,
+        "max_error_over_sum_abs_terms": 4.48594962814708e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.0548480178065725e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 1.818282548526895e-6,
+        "max_error_over_sum_abs_terms": 9.409670613227472e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.5491671755778114e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 1.818282548526895e-6,
+        "max_error_over_sum_abs_terms": 9.409670613227472e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.5491671755778114e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 1.8752275110500705e-6,
+        "max_error_over_sum_abs_terms": 9.409670613227472e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.5491671755778114e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.000010973406990189005,
+        "max_error_over_sum_abs_terms": 5.7942946788047645e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.00025562812894008857,
+        "max_error_over_sum_abs_terms": 1.385639923585471e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.000010973406990189005,
+        "max_error_over_sum_abs_terms": 6.492577038082962e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.0003688036091631375,
+        "max_error_over_sum_abs_terms": 2.0984086650866623e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.000010973406990189005,
+        "max_error_over_sum_abs_terms": 6.492577038082962e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.0006628681055929064,
+        "max_error_over_sum_abs_terms": 3.2137654108240607e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.000012140954328998532,
+        "max_error_over_sum_abs_terms": 7.560967173993794e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.0006628681055929064,
+        "max_error_over_sum_abs_terms": 3.2137654108240607e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.000032456395054225595,
+        "max_error_over_sum_abs_terms": 5.0423401042131465e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.0009072838926442728,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.000032456395054225595,
+        "max_error_over_sum_abs_terms": 5.0423401042131465e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.0011406368473672046,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.000047416011497602994,
+        "max_error_over_sum_abs_terms": 7.464423419280527e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.0011406368473672046,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.000047416011497602994,
+        "max_error_over_sum_abs_terms": 7.464423419280527e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.0011406368473672046,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 2.1724088128394214e-7,
+        "max_error_over_sum_abs_terms": 5.214442880585446e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 2.1724088128394214e-7,
+        "max_error_over_sum_abs_terms": 5.214442880585446e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 2.1724088128394214e-7,
+        "max_error_over_sum_abs_terms": 5.5646074891398096e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 4.6294579192363017e-7,
+        "max_error_over_sum_abs_terms": 8.865506961508243e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 8.527010351144781e-7,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 1.0843573363672476e-6,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 1.0843573363672476e-6,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 1.0843573363672476e-6,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.00003575466819683015,
+        "max_error_over_sum_abs_terms": 1.960310770549158e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00003654848335798988,
+        "max_error_over_sum_abs_terms": 2.1178109752406706e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00003843327214525516,
+        "max_error_over_sum_abs_terms": 2.518559296683644e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.00003843327214525516,
+        "max_error_over_sum_abs_terms": 3.1846612554482424e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.00001552902285695268,
+        "max_error_over_sum_abs_terms": 1.0231872649638933e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.0002823144161183677,
+        "max_error_over_sum_abs_terms": 1.6741080730893222e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00001552902285695268,
+        "max_error_over_sum_abs_terms": 1.0231872649638933e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00036285028477323067,
+        "max_error_over_sum_abs_terms": 2.3734399584421894e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00001552902285695268,
+        "max_error_over_sum_abs_terms": 1.0231872649638933e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00036285028477323067,
+        "max_error_over_sum_abs_terms": 2.3734399584421894e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.00001941739572686174,
+        "max_error_over_sum_abs_terms": 1.1851738081127716e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.0005021426338771562,
+        "max_error_over_sum_abs_terms": 2.9837013125561156e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.00006120315704194468,
+        "max_error_over_sum_abs_terms": 1.0802521205904466e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.0011588333234726633,
+        "max_error_over_sum_abs_terms": 1.7940656265362016e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00007482282005000229,
+        "max_error_over_sum_abs_terms": 1.2793344016795712e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.0011588333234726633,
+        "max_error_over_sum_abs_terms": 1.7940656265362016e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00007482282005000229,
+        "max_error_over_sum_abs_terms": 1.2793344016795712e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.0015538121303961816,
+        "max_error_over_sum_abs_terms": 2.377433119607063e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.00007482282005000229,
+        "max_error_over_sum_abs_terms": 1.2793344016795712e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.0026897484744949907,
+        "max_error_over_sum_abs_terms": 4.830343611014966e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 6.3535026129102334e-9,
+        "max_error_over_sum_abs_terms": 7.933919911476196e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 3.8156637849340314e-7,
+        "max_error_over_sum_abs_terms": 1.0057520026687675e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 6.3535026129102334e-9,
+        "max_error_over_sum_abs_terms": 7.933919911476196e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 1.3649250902858512e-6,
+        "max_error_over_sum_abs_terms": 4.596096517987529e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 1.4295210348791443e-8,
+        "max_error_over_sum_abs_terms": 1.6394307800024537e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 2.381273702667386e-6,
+        "max_error_over_sum_abs_terms": 7.783329048245358e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 2.8320812361926073e-8,
+        "max_error_over_sum_abs_terms": 3.216842776656325e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 2.381273702667386e-6,
+        "max_error_over_sum_abs_terms": 7.783329048245358e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 5.92242486163741e-8,
+        "max_error_over_sum_abs_terms": 5.7683217251347e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 6.403045361480508e-6,
+        "max_error_over_sum_abs_terms": 4.293242127779764e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 5.92242486163741e-8,
+        "max_error_over_sum_abs_terms": 5.7683217251347e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 9.929226024496529e-6,
+        "max_error_over_sum_abs_terms": 9.674461325652821e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 2.5450198393173196e-7,
+        "max_error_over_sum_abs_terms": 2.3040316023843277e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.000010242900295054369,
+        "max_error_over_sum_abs_terms": 9.674461325652821e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 2.5450198393173196e-7,
+        "max_error_over_sum_abs_terms": 2.3040316023843277e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.000010242900295054369,
+        "max_error_over_sum_abs_terms": 9.674461325652821e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 3.899858867839612e-6,
+        "max_error_over_sum_abs_terms": 1.548540663915422e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 3.899858867839612e-6,
+        "max_error_over_sum_abs_terms": 1.548540663915422e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 4.856702609856711e-6,
+        "max_error_over_sum_abs_terms": 2.388519672540374e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.000020555280997314185,
+        "max_error_over_sum_abs_terms": 8.814061588149492e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 6.680134842432987e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 1.368994016814895e-6,
+        "max_error_over_sum_abs_terms": 7.331983243236741e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 6.680134842432987e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.00001151928439924177,
+        "max_error_over_sum_abs_terms": 2.5816425925175537e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 1.8271759273909187e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.00001151928439924177,
+        "max_error_over_sum_abs_terms": 2.5816425925175537e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 1.8271759273909187e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.00001151928439924177,
+        "max_error_over_sum_abs_terms": 2.5816425925175537e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 5.8469594783616685e-6,
+        "max_error_over_sum_abs_terms": 8.460051683813465e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.00002279371044267009,
+        "max_error_over_sum_abs_terms": 2.0772181515053163e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.00002279371044267009,
+        "max_error_over_sum_abs_terms": 2.0772181515053163e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.00002279371044267009,
+        "max_error_over_sum_abs_terms": 2.0772181515053163e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 7.221949545055395e-7,
+        "max_error_over_sum_abs_terms": 4.48594962814708e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.0548480178065725e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 1.818282548526895e-6,
+        "max_error_over_sum_abs_terms": 9.409670613227472e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.5491671755778114e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 1.818282548526895e-6,
+        "max_error_over_sum_abs_terms": 9.409670613227472e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.5491671755778114e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 1.8752275110500705e-6,
+        "max_error_over_sum_abs_terms": 9.409670613227472e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.5491671755778114e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.000010973406990189005,
+        "max_error_over_sum_abs_terms": 5.7942946788047645e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.00025562812894008857,
+        "max_error_over_sum_abs_terms": 1.385639923585471e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.000010973406990189005,
+        "max_error_over_sum_abs_terms": 6.492577038082962e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.0003688036091631375,
+        "max_error_over_sum_abs_terms": 2.0984086650866623e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.000010973406990189005,
+        "max_error_over_sum_abs_terms": 6.492577038082962e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.0006628681055929064,
+        "max_error_over_sum_abs_terms": 3.2137654108240607e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.000012140954328998532,
+        "max_error_over_sum_abs_terms": 7.560967173993794e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.0006628681055929064,
+        "max_error_over_sum_abs_terms": 3.2137654108240607e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.000032456395054225595,
+        "max_error_over_sum_abs_terms": 5.0423401042131465e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.0009072838926442728,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.000032456395054225595,
+        "max_error_over_sum_abs_terms": 5.0423401042131465e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.0011406368473672046,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.000047416011497602994,
+        "max_error_over_sum_abs_terms": 7.464423419280527e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.0011406368473672046,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.000047416011497602994,
+        "max_error_over_sum_abs_terms": 7.464423419280527e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.0011406368473672046,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 2.1724088128394214e-7,
+        "max_error_over_sum_abs_terms": 5.214442880585446e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 2.1724088128394214e-7,
+        "max_error_over_sum_abs_terms": 5.214442880585446e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 2.1724088128394214e-7,
+        "max_error_over_sum_abs_terms": 5.5646074891398096e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 4.6294579192363017e-7,
+        "max_error_over_sum_abs_terms": 8.865506961508243e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 8.527010351144781e-7,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 1.0843573363672476e-6,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 1.0843573363672476e-6,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 1.0843573363672476e-6,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.00003575466819683015,
+        "max_error_over_sum_abs_terms": 1.960310770549158e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00003654848335798988,
+        "max_error_over_sum_abs_terms": 2.1178109752406706e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00003843327214525516,
+        "max_error_over_sum_abs_terms": 2.518559296683644e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.00003843327214525516,
+        "max_error_over_sum_abs_terms": 3.1846612554482424e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.00001552902285695268,
+        "max_error_over_sum_abs_terms": 1.0231872649638933e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.0002823144161183677,
+        "max_error_over_sum_abs_terms": 1.6741080730893222e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00001552902285695268,
+        "max_error_over_sum_abs_terms": 1.0231872649638933e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00036285028477323067,
+        "max_error_over_sum_abs_terms": 2.3734399584421894e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00001552902285695268,
+        "max_error_over_sum_abs_terms": 1.0231872649638933e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00036285028477323067,
+        "max_error_over_sum_abs_terms": 2.3734399584421894e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.00001941739572686174,
+        "max_error_over_sum_abs_terms": 1.1851738081127716e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.0005021426338771562,
+        "max_error_over_sum_abs_terms": 2.9837013125561156e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.00006120315704194468,
+        "max_error_over_sum_abs_terms": 1.0802521205904466e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.0011588333234726633,
+        "max_error_over_sum_abs_terms": 1.7940656265362016e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00007482282005000229,
+        "max_error_over_sum_abs_terms": 1.2793344016795712e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.0011588333234726633,
+        "max_error_over_sum_abs_terms": 1.7940656265362016e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00007482282005000229,
+        "max_error_over_sum_abs_terms": 1.2793344016795712e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.0015538121303961816,
+        "max_error_over_sum_abs_terms": 2.377433119607063e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.00007482282005000229,
+        "max_error_over_sum_abs_terms": 1.2793344016795712e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m16_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.0026897484744949907,
+        "max_error_over_sum_abs_terms": 4.830343611014966e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 6.3535026129102334e-9,
+        "max_error_over_sum_abs_terms": 7.933919911476196e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 3.8156637849340314e-7,
+        "max_error_over_sum_abs_terms": 1.0057520026687675e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 6.3535026129102334e-9,
+        "max_error_over_sum_abs_terms": 7.933919911476196e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 1.3649250902858512e-6,
+        "max_error_over_sum_abs_terms": 4.596096517987529e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 1.4295210348791443e-8,
+        "max_error_over_sum_abs_terms": 1.6394307800024537e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 2.381273702667386e-6,
+        "max_error_over_sum_abs_terms": 7.783329048245358e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 2.8320812361926073e-8,
+        "max_error_over_sum_abs_terms": 3.216842776656325e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 2.381273702667386e-6,
+        "max_error_over_sum_abs_terms": 7.783329048245358e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 5.92242486163741e-8,
+        "max_error_over_sum_abs_terms": 5.7683217251347e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 6.403045361480508e-6,
+        "max_error_over_sum_abs_terms": 4.293242127779764e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 5.92242486163741e-8,
+        "max_error_over_sum_abs_terms": 5.7683217251347e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 9.929226024496529e-6,
+        "max_error_over_sum_abs_terms": 9.674461325652821e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 2.5450198393173196e-7,
+        "max_error_over_sum_abs_terms": 2.3040316023843277e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.000010242900295054369,
+        "max_error_over_sum_abs_terms": 9.674461325652821e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 2.5450198393173196e-7,
+        "max_error_over_sum_abs_terms": 2.3040316023843277e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.000010242900295054369,
+        "max_error_over_sum_abs_terms": 9.674461325652821e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 3.899858867839612e-6,
+        "max_error_over_sum_abs_terms": 1.548540663915422e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 3.899858867839612e-6,
+        "max_error_over_sum_abs_terms": 1.548540663915422e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 4.856702609856711e-6,
+        "max_error_over_sum_abs_terms": 2.388519672540374e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.000020555280997314185,
+        "max_error_over_sum_abs_terms": 8.814061588149492e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 6.680134842432987e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 1.368994016814895e-6,
+        "max_error_over_sum_abs_terms": 7.331983243236741e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 6.680134842432987e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.00001151928439924177,
+        "max_error_over_sum_abs_terms": 2.5816425925175537e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 1.8271759273909187e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.00001151928439924177,
+        "max_error_over_sum_abs_terms": 2.5816425925175537e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 1.8271759273909187e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.00001151928439924177,
+        "max_error_over_sum_abs_terms": 2.5816425925175537e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 5.8469594783616685e-6,
+        "max_error_over_sum_abs_terms": 8.460051683813465e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.00002279371044267009,
+        "max_error_over_sum_abs_terms": 2.0772181515053163e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.00002279371044267009,
+        "max_error_over_sum_abs_terms": 2.0772181515053163e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.00002279371044267009,
+        "max_error_over_sum_abs_terms": 2.0772181515053163e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 7.221949545055395e-7,
+        "max_error_over_sum_abs_terms": 4.48594962814708e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.0548480178065725e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 1.818282548526895e-6,
+        "max_error_over_sum_abs_terms": 9.409670613227472e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.5491671755778114e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 1.818282548526895e-6,
+        "max_error_over_sum_abs_terms": 9.409670613227472e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.5491671755778114e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 1.8752275110500705e-6,
+        "max_error_over_sum_abs_terms": 9.409670613227472e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.5491671755778114e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.000010973406990189005,
+        "max_error_over_sum_abs_terms": 5.7942946788047645e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.00025562812894008857,
+        "max_error_over_sum_abs_terms": 1.385639923585471e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.000010973406990189005,
+        "max_error_over_sum_abs_terms": 6.492577038082962e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.0003688036091631375,
+        "max_error_over_sum_abs_terms": 2.0984086650866623e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.000010973406990189005,
+        "max_error_over_sum_abs_terms": 6.492577038082962e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.0006628681055929064,
+        "max_error_over_sum_abs_terms": 3.2137654108240607e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.000012140954328998532,
+        "max_error_over_sum_abs_terms": 7.560967173993794e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.0006628681055929064,
+        "max_error_over_sum_abs_terms": 3.2137654108240607e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.000032456395054225595,
+        "max_error_over_sum_abs_terms": 5.0423401042131465e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.0009072838926442728,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.000032456395054225595,
+        "max_error_over_sum_abs_terms": 5.0423401042131465e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.0011406368473672046,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.000047416011497602994,
+        "max_error_over_sum_abs_terms": 7.464423419280527e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.0011406368473672046,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.000047416011497602994,
+        "max_error_over_sum_abs_terms": 7.464423419280527e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.0011406368473672046,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 2.1724088128394214e-7,
+        "max_error_over_sum_abs_terms": 5.214442880585446e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 2.1724088128394214e-7,
+        "max_error_over_sum_abs_terms": 5.214442880585446e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 2.1724088128394214e-7,
+        "max_error_over_sum_abs_terms": 5.5646074891398096e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 4.6294579192363017e-7,
+        "max_error_over_sum_abs_terms": 8.865506961508243e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 8.527010351144781e-7,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 1.0843573363672476e-6,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 1.0843573363672476e-6,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 1.0843573363672476e-6,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.00003575466819683015,
+        "max_error_over_sum_abs_terms": 1.960310770549158e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00003654848335798988,
+        "max_error_over_sum_abs_terms": 2.1178109752406706e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00003843327214525516,
+        "max_error_over_sum_abs_terms": 2.518559296683644e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.00003843327214525516,
+        "max_error_over_sum_abs_terms": 3.1846612554482424e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.00001552902285695268,
+        "max_error_over_sum_abs_terms": 1.0231872649638933e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.0002823144161183677,
+        "max_error_over_sum_abs_terms": 1.6741080730893222e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00001552902285695268,
+        "max_error_over_sum_abs_terms": 1.0231872649638933e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00036285028477323067,
+        "max_error_over_sum_abs_terms": 2.3734399584421894e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00001552902285695268,
+        "max_error_over_sum_abs_terms": 1.0231872649638933e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00036285028477323067,
+        "max_error_over_sum_abs_terms": 2.3734399584421894e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.00001941739572686174,
+        "max_error_over_sum_abs_terms": 1.1851738081127716e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.0005021426338771562,
+        "max_error_over_sum_abs_terms": 2.9837013125561156e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.00006120315704194468,
+        "max_error_over_sum_abs_terms": 1.0802521205904466e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.0011588333234726633,
+        "max_error_over_sum_abs_terms": 1.7940656265362016e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00007482282005000229,
+        "max_error_over_sum_abs_terms": 1.2793344016795712e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.0011588333234726633,
+        "max_error_over_sum_abs_terms": 1.7940656265362016e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00007482282005000229,
+        "max_error_over_sum_abs_terms": 1.2793344016795712e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.0015538121303961816,
+        "max_error_over_sum_abs_terms": 2.377433119607063e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.00007482282005000229,
+        "max_error_over_sum_abs_terms": 1.2793344016795712e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k64",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.0026897484744949907,
+        "max_error_over_sum_abs_terms": 4.830343611014966e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 6.3535026129102334e-9,
+        "max_error_over_sum_abs_terms": 7.933919911476196e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 3.8156637849340314e-7,
+        "max_error_over_sum_abs_terms": 1.0057520026687675e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 6.3535026129102334e-9,
+        "max_error_over_sum_abs_terms": 7.933919911476196e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 1.3649250902858512e-6,
+        "max_error_over_sum_abs_terms": 4.596096517987529e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 1.4295210348791443e-8,
+        "max_error_over_sum_abs_terms": 1.6394307800024537e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 2.381273702667386e-6,
+        "max_error_over_sum_abs_terms": 7.783329048245358e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 2.8320812361926073e-8,
+        "max_error_over_sum_abs_terms": 3.216842776656325e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 2.381273702667386e-6,
+        "max_error_over_sum_abs_terms": 7.783329048245358e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 5.92242486163741e-8,
+        "max_error_over_sum_abs_terms": 5.7683217251347e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 6.403045361480508e-6,
+        "max_error_over_sum_abs_terms": 4.293242127779764e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 5.92242486163741e-8,
+        "max_error_over_sum_abs_terms": 5.7683217251347e-9,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 9.929226024496529e-6,
+        "max_error_over_sum_abs_terms": 9.674461325652821e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 2.5450198393173196e-7,
+        "max_error_over_sum_abs_terms": 2.3040316023843277e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.000010242900295054369,
+        "max_error_over_sum_abs_terms": 9.674461325652821e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 2.5450198393173196e-7,
+        "max_error_over_sum_abs_terms": 2.3040316023843277e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.000010242900295054369,
+        "max_error_over_sum_abs_terms": 9.674461325652821e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 3.899858867839612e-6,
+        "max_error_over_sum_abs_terms": 1.548540663915422e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 3.899858867839612e-6,
+        "max_error_over_sum_abs_terms": 1.548540663915422e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 4.856702609856711e-6,
+        "max_error_over_sum_abs_terms": 2.388519672540374e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 1.4810640891482763e-7,
+        "max_error_over_sum_abs_terms": 1.7680611397021954e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.000020555280997314185,
+        "max_error_over_sum_abs_terms": 8.814061588149492e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.000022124652240052,
+        "max_error_over_sum_abs_terms": 1.0582593261171566e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.00020902577651327192,
+        "max_error_over_sum_abs_terms": 1.0212989335633233e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 1,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 2,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 3,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.00007167532711704894,
+        "max_error_over_sum_abs_terms": 1.0674426152426458e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 4,
+        "max_absolute_error": 0.0003935220508992643,
+        "max_error_over_sum_abs_terms": 6.84846861367939e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 1,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 6.680134842432987e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 1.368994016814895e-6,
+        "max_error_over_sum_abs_terms": 7.331983243236741e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 6.680134842432987e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.00001151928439924177,
+        "max_error_over_sum_abs_terms": 2.5816425925175537e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 1.8271759273909187e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.00001151928439924177,
+        "max_error_over_sum_abs_terms": 2.5816425925175537e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 4.844662271352718e-7,
+        "max_error_over_sum_abs_terms": 1.8271759273909187e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.00001151928439924177,
+        "max_error_over_sum_abs_terms": 2.5816425925175537e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 5.8469594783616685e-6,
+        "max_error_over_sum_abs_terms": 8.460051683813465e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.00002279371044267009,
+        "max_error_over_sum_abs_terms": 2.0772181515053163e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.00002279371044267009,
+        "max_error_over_sum_abs_terms": 2.0772181515053163e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 7.321844748275907e-7,
+        "max_error_over_sum_abs_terms": 1.2193735075802465e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.00002279371044267009,
+        "max_error_over_sum_abs_terms": 2.0772181515053163e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 7.221949545055395e-7,
+        "max_error_over_sum_abs_terms": 4.48594962814708e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.0548480178065725e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 1.818282548526895e-6,
+        "max_error_over_sum_abs_terms": 9.409670613227472e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.5491671755778114e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 1.818282548526895e-6,
+        "max_error_over_sum_abs_terms": 9.409670613227472e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.5491671755778114e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 1.8752275110500705e-6,
+        "max_error_over_sum_abs_terms": 9.409670613227472e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.00002340257389477074,
+        "max_error_over_sum_abs_terms": 1.5491671755778114e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.000010973406990189005,
+        "max_error_over_sum_abs_terms": 5.7942946788047645e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.00025562812894008857,
+        "max_error_over_sum_abs_terms": 1.385639923585471e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.000010973406990189005,
+        "max_error_over_sum_abs_terms": 6.492577038082962e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.0003688036091631375,
+        "max_error_over_sum_abs_terms": 2.0984086650866623e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.000010973406990189005,
+        "max_error_over_sum_abs_terms": 6.492577038082962e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.0006628681055929064,
+        "max_error_over_sum_abs_terms": 3.2137654108240607e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.000012140954328998532,
+        "max_error_over_sum_abs_terms": 7.560967173993794e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.0006628681055929064,
+        "max_error_over_sum_abs_terms": 3.2137654108240607e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.000032456395054225595,
+        "max_error_over_sum_abs_terms": 5.0423401042131465e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 17,
+        "max_absolute_error": 0.0009072838926442728,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.000032456395054225595,
+        "max_error_over_sum_abs_terms": 5.0423401042131465e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 34,
+        "max_absolute_error": 0.0011406368473672046,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.000047416011497602994,
+        "max_error_over_sum_abs_terms": 7.464423419280527e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 51,
+        "max_absolute_error": 0.0011406368473672046,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.000047416011497602994,
+        "max_error_over_sum_abs_terms": 7.464423419280527e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 68,
+        "max_absolute_error": 0.0011406368473672046,
+        "max_error_over_sum_abs_terms": 1.747527613220523e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 17,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 2.1724088128394214e-7,
+        "max_error_over_sum_abs_terms": 5.214442880585446e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 2.1724088128394214e-7,
+        "max_error_over_sum_abs_terms": 5.214442880585446e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 2.1724088128394214e-7,
+        "max_error_over_sum_abs_terms": 5.5646074891398096e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 4.6294579192363017e-7,
+        "max_error_over_sum_abs_terms": 8.865506961508243e-8,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 64,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 3.7061483126876738e-6,
+        "max_error_over_sum_abs_terms": 1.6007604945128584e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 8.527010351144781e-7,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 1.0843573363672476e-6,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 1.0843573363672476e-6,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 1.0843573363672476e-6,
+        "max_error_over_sum_abs_terms": 1.5858409979872798e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 192,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.000019955319039866026,
+        "max_error_over_sum_abs_terms": 2.302172246091698e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.00003575466819683015,
+        "max_error_over_sum_abs_terms": 1.960310770549158e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00003654848335798988,
+        "max_error_over_sum_abs_terms": 2.1178109752406706e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00003843327214525516,
+        "max_error_over_sum_abs_terms": 2.518559296683644e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 3.226653049637207e-6,
+        "max_error_over_sum_abs_terms": 1.4209458025157102e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 512,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.00003843327214525516,
+        "max_error_over_sum_abs_terms": 3.1846612554482424e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.00001552902285695268,
+        "max_error_over_sum_abs_terms": 1.0231872649638933e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.0002823144161183677,
+        "max_error_over_sum_abs_terms": 1.6741080730893222e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00001552902285695268,
+        "max_error_over_sum_abs_terms": 1.0231872649638933e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00036285028477323067,
+        "max_error_over_sum_abs_terms": 2.3734399584421894e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00001552902285695268,
+        "max_error_over_sum_abs_terms": 1.0231872649638933e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00036285028477323067,
+        "max_error_over_sum_abs_terms": 2.3734399584421894e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.00001941739572686174,
+        "max_error_over_sum_abs_terms": 1.1851738081127716e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 5120,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.0005021426338771562,
+        "max_error_over_sum_abs_terms": 2.9837013125561156e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.00006120315704194468,
+        "max_error_over_sum_abs_terms": 1.0802521205904466e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 1,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 36,
+        "max_absolute_error": 0.0011588333234726633,
+        "max_error_over_sum_abs_terms": 1.7940656265362016e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.00007482282005000229,
+        "max_error_over_sum_abs_terms": 1.2793344016795712e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 2,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 72,
+        "max_absolute_error": 0.0011588333234726633,
+        "max_error_over_sum_abs_terms": 1.7940656265362016e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.00007482282005000229,
+        "max_error_over_sum_abs_terms": 1.2793344016795712e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 3,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 108,
+        "max_absolute_error": 0.0015538121303961816,
+        "max_error_over_sum_abs_terms": 2.377433119607063e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.00007482282005000229,
+        "max_error_over_sum_abs_terms": 1.2793344016795712e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 7
+    },
+    {
+      "batch": 4,
+      "cols": 17408,
+      "kernel": "tensor_q4_m32_k128",
+      "oracle": {
+        "checked_outputs": 144,
+        "max_absolute_error": 0.0026897484744949907,
+        "max_error_over_sum_abs_terms": 4.830343611014966e-7,
+        "tolerance": "1e-6 + 1e-5 * sum(abs(FP64 products))"
+      },
+      "rows": 36,
+      "seed": 19
+    }
+  ],
+  "device": "Apple M5 Pro",
+  "engine_version": "0.6.5",
+  "harness_sha256": "4a0695edc6abc97b97e41cb4e3a14a78bfe18a72f9db1e8dcf658676c0114bdf",
+  "input_precision": "FP32",
+  "kind": "tensorops_fp32_oracle_check",
+  "note": "Isolated synthetic Q4/g64 BF16-metadata probe; changed reduction/dequantization order, not a bitwise-equivalence claim. Repeated weights may benefit from cache. No trained-model quality or model tokens/s claim; runtime compilation does not establish M5 Neural Accelerator utilization.",
+  "os_version": "26.6.2",
+  "production_selected": false,
+  "relaxed_precision": false,
+  "scalar_shader_sha256": "546b388f451111762d54d69636e87c28dca031ff5b2b82c49b4bfbd9da7d853b",
+  "tensor_shader_sha256": "043cdd998e75c367c8d59295bf0a0a1d72d3a7c73c8fc3ab777aa2c9e5217055"
+}

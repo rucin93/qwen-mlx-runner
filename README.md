@@ -42,8 +42,10 @@ head and other shapes/formats/block widths retain their existing dispatch.
 Set `QWEN_METAL_BLOCK_MATMUL=legacy` for an explicit fallback.
 
 Version 0.6.5 also includes a standalone [FP32 TensorOps experiment](docs/tensorops-probe.md).
-It is excluded from inference: primitive correctness and target-device timing
-must precede any trained-model integration.
+The user's M5 Pro sweep rejects this implementation for B3 decode: all 288
+paired samples are slower, with candidate medians 4.21–8.10 times the scalar
+controls. Numerical checks pass, but the experiment stays outside inference.
+The measured R2 configuration remains selected on M5 Pro.
 
 Earlier evidence includes the [16.13 tokens/s ordinary-target measurement](docs/m5-pro.md),
 the [26.77 tokens/s first MTP result](docs/m5-mtp-v0.6.md), and the
