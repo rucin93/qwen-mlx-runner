@@ -166,3 +166,84 @@ tokenizer={"version":"1.0","truncation":None,"padding":None,"added_tokens":[],
 (ROOT/"tokenizer.json").write_text(json.dumps(tokenizer)+"\n")
 (ROOT/"chat_template.jinja").write_text("{% for m in messages %}{{ m.role }} {{ m.content }} {% endfor %}assistant")
 print(f"Wrote {len(body)} bytes of synthetic F16 weights and {len(ids)} reference logit vectors to {ROOT}")
+
+# A second checkpoint exercises the packed affine-Q4 path and the converted
+# MLX tensor convention. The scalar oracle uses exactly the dequantized values
+# represented by the packed words and rounded F16 affine parameters.
+Q4_ROOT = ROOT.parent / "tiny-q4"
+Q4_ROOT.mkdir(parents=True, exist_ok=True)
+q4_header = {}
+q4_body = bytearray()
+
+def q4_tensor(name, shape, dtype, data):
+    q4_header[name] = {"dtype":dtype,"shape":shape,
+                       "data_offsets":[len(q4_body),len(q4_body)+len(data)]}
+    q4_body.extend(data)
+
+def half(value):
+    return struct.unpack("<e", struct.pack("<e", value))[0]
+
+def mlx_name(name):
+    return "language_model." + name
+
+for name, original in weights.items():
+    shape = shapes[name]
+    converted_name = mlx_name(name)
+    if len(shape) == 2:
+        rows, cols = shape
+        assert cols % 32 == 0
+        packed, scales, biases, dequantized = [], [], [], []
+        for row in range(rows):
+            for group_start in range(0, cols, 32):
+                group = original[row*cols+group_start:row*cols+group_start+32]
+                scale = half((max(group)-min(group))/15)
+                bias = half(min(group))
+                assert scale > 0
+                scales.append(scale)
+                biases.append(bias)
+                quantized = [min(15,max(0,round((v-bias)/scale))) for v in group]
+                dequantized.extend(q*scale+bias for q in quantized)
+                packed.extend(sum(q << (4*i) for i,q in enumerate(quantized[j:j+8]))
+                              for j in range(0,32,8))
+        weights[name] = dequantized
+        module = converted_name.removesuffix(".weight")
+        groups = cols//32
+        q4_tensor(converted_name,[rows,cols//8],"U32",
+                  struct.pack("<"+"I"*len(packed),*packed))
+        q4_tensor(module+".scales",[rows,groups],"F16",
+                  struct.pack("<"+"e"*len(scales),*scales))
+        q4_tensor(module+".biases",[rows,groups],"F16",
+                  struct.pack("<"+"e"*len(biases),*biases))
+    elif name.endswith(".conv1d.weight"):
+        # MLX [channels, kernel, 1] has the same flattened channel-major data.
+        q4_tensor(converted_name,[shape[0],shape[2],1],"F16",
+                  struct.pack("<"+"e"*len(original),*original))
+    elif name == "model.norm.weight" or name.endswith((
+            ".input_layernorm.weight",".post_attention_layernorm.weight",
+            ".q_norm.weight",".k_norm.weight")):
+        # HF zero-centered norms become multiplicative in converted MLX files.
+        # F32 preserves the original rounded-F16 value plus one exactly.
+        q4_tensor(converted_name,shape,"F32",
+                  struct.pack("<"+"f"*len(original),*(v+1 for v in original)))
+    else:
+        q4_tensor(converted_name,shape,"F16",
+                  struct.pack("<"+"e"*len(original),*original))
+
+q4_hdr = json.dumps(q4_header,separators=(",",":")).encode()
+q4_hdr += b" "*((-len(q4_hdr))%8)
+(Q4_ROOT/"model.safetensors").write_bytes(struct.pack("<Q",len(q4_hdr))+q4_hdr+q4_body)
+q4_config = dict(config)
+q4_config["quantization"] = {"bits":4,"group_size":32,"mode":"affine"}
+(Q4_ROOT/"config.json").write_text(json.dumps(q4_config,indent=2)+"\n")
+for filename in ("tokenizer.json","chat_template.jinja"):
+    (Q4_ROOT/filename).write_bytes((ROOT/filename).read_bytes())
+
+# The F16 fixture above has already been serialized; only matrix values in
+# this oracle now change. Recurrent, convolution and attention caches restart.
+conv = [[[0.]*3 for _ in range(2*KH*K+VH*V)] for _ in range(3)]
+state = [[[[0.]*K for _ in range(V)] for _ in range(VH)] for _ in range(3)]
+keys, values = [], []
+q4_golden = {"tokens":ids,"logits":[forward(t,i) for i,t in enumerate(ids)],
+             "description":"Scalar Python oracle for packed affine Q4, four-layer synthetic untrained hybrid"}
+(Q4_ROOT/"golden.json").write_text(json.dumps(q4_golden,indent=2)+"\n")
+print(f"Wrote {len(q4_body)} bytes of synthetic packed Q4 weights and {len(ids)} reference logit vectors to {Q4_ROOT}")

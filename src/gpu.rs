@@ -10,6 +10,8 @@ pub struct Gpu {
     pub device: Device,
     pub queue: CommandQueue,
     pipelines: HashMap<&'static str, ComputePipelineState>,
+    reference_kernels: bool,
+    matvec_variant: String,
 }
 const KERNELS: &[&str] = &[
     "matvec_f16",
@@ -30,9 +32,32 @@ const KERNELS: &[&str] = &[
     "attn_scores",
     "softmax",
     "attn_values",
+    "matvec_q4_g32",
+    "matvec_q4_g64",
+    "matvec_q4_g128",
+    "matvec_q8_g32",
+    "matvec_q8_g64",
+    "matvec_q8_g128",
+    "matvec_q4_g32_aligned",
+    "matvec_q4_g64_aligned",
+    "matvec_q4_g128_aligned",
 ];
 impl Gpu {
     pub fn new() -> Result<Self> {
+        Self::new_with_reference(std::env::var("QWEN_METAL_REFERENCE").is_ok_and(|v| v == "1"))
+    }
+    /// Keep the original arithmetic path available for same-binary A/B measurements.
+    pub fn new_with_reference(reference_kernels: bool) -> Result<Self> {
+        Self::new_with_variant(
+            reference_kernels,
+            &std::env::var("QWEN_METAL_GEMV").unwrap_or_else(|_| "aligned".into()),
+        )
+    }
+    pub fn new_with_variant(reference_kernels: bool, variant: &str) -> Result<Self> {
+        ensure!(
+            matches!(variant, "packed4" | "aligned"),
+            "QWEN_METAL_GEMV must be packed4 or aligned"
+        );
         let device = Device::system_default()
             .context("No Metal GPU available; this engine requires Apple Silicon")?;
         ensure!(
@@ -49,13 +74,39 @@ impl Gpu {
         let library = device
             .new_library_with_source(include_str!("../kernels/qwen.metal"), &options)
             .map_err(|e| anyhow!("Metal shader compilation failed: {e}"))?;
+        let mat_options = metal::CompileOptions::new();
+        mat_options.set_fast_math_enabled(true);
+        let mat_library = device
+            .new_library_with_source(
+                concat!(
+                    include_str!("../kernels/matvec_fast.metal"),
+                    "\n",
+                    include_str!("../kernels/matvec_aligned.metal")
+                ),
+                &mat_options,
+            )
+            .map_err(|e| anyhow!("Metal matvec shader compilation failed: {e}"))?;
         let mut pipelines = HashMap::new();
         for &name in KERNELS {
-            let function = library
-                .get_function(name, None)
-                .map_err(|e| anyhow!("Metal function {name}: {e}"))?;
+            let function = (if name.starts_with("matvec_q") {
+                &mat_library
+            } else {
+                &library
+            })
+            .get_function(name, None)
+            .map_err(|e| anyhow!("Metal function {name}: {e}"))?;
+            let descriptor = metal::ComputePipelineDescriptor::new();
+            descriptor.set_compute_function(Some(&function));
+            descriptor.set_thread_group_size_is_multiple_of_thread_execution_width(true);
+            if name.starts_with("matvec_q") {
+                descriptor.set_max_total_threads_per_threadgroup(if name.ends_with("_aligned") {
+                    64
+                } else {
+                    128
+                });
+            }
             let pipeline = device
-                .new_compute_pipeline_state_with_function(&function)
+                .new_compute_pipeline_state(&descriptor)
                 .map_err(|e| anyhow!("Metal pipeline {name}: {e}"))?;
             ensure!(
                 pipeline.thread_execution_width() == 32,
@@ -68,7 +119,16 @@ impl Gpu {
             device,
             queue,
             pipelines,
+            reference_kernels,
+            matvec_variant: variant.into(),
         })
+    }
+    pub fn kernel_mode(&self) -> &str {
+        if self.reference_kernels {
+            "reference"
+        } else {
+            &self.matvec_variant
+        }
     }
     pub fn alloc_f32(&self, len: usize) -> Result<Buffer> {
         let bytes = len
@@ -133,11 +193,16 @@ impl Gpu {
         threads: usize,
         group_size: usize,
     ) -> Result<()> {
+        let (sizes, expected_threads) = dispatch_layout(name, params)?;
+        let specialized = if !self.reference_kernels && name == "matvec_affine" {
+            specialized_matvec(params, self.matvec_variant == "aligned")
+        } else {
+            None
+        };
         let pipeline = self
             .pipelines
-            .get(name)
+            .get(specialized.unwrap_or(name))
             .with_context(|| format!("Unknown GPU kernel {name}"))?;
-        let (sizes, expected_threads) = dispatch_layout(name, params)?;
         ensure!(
             sizes.len() == buffers.len(),
             "{name}: expected {} buffers, got {}",
@@ -148,10 +213,15 @@ impl Gpu {
             threads == expected_threads,
             "{name}: expected {expected_threads} threads, got {threads}"
         );
+        let actual_group_size = if specialized.is_some_and(|n| n.ends_with("_aligned")) {
+            64
+        } else {
+            group_size
+        };
         ensure!(
             group_size >= 32
                 && group_size % 32 == 0
-                && group_size <= pipeline.max_total_threads_per_threadgroup() as usize,
+                && actual_group_size <= pipeline.max_total_threads_per_threadgroup() as usize,
             "{name}: invalid threadgroup size {group_size}"
         );
         for (i, (buffer, minimum)) in buffers.iter().zip(sizes).enumerate() {
@@ -168,13 +238,40 @@ impl Gpu {
             std::mem::size_of_val(params) as u64,
             params.as_ptr().cast(),
         );
+        let actual_threads = if specialized.is_some() {
+            (params[0] as usize).div_ceil(4) * 32
+        } else {
+            threads
+        };
         encoder.dispatch_thread_groups(
-            MTLSize::new(threads.div_ceil(group_size) as u64, 1, 1),
-            MTLSize::new(group_size as u64, 1, 1),
+            MTLSize::new(actual_threads.div_ceil(actual_group_size) as u64, 1, 1),
+            MTLSize::new(actual_group_size as u64, 1, 1),
         );
         // Explicit dispatch-to-dispatch ordering, including in-place state updates.
-        let resources: Vec<&ResourceRef> = buffers.iter().map(|b| &***b).collect();
-        encoder.memory_barrier_with_resources(&resources);
+        if self.reference_kernels {
+            let resources: Vec<&ResourceRef> = buffers.iter().map(|b| &***b).collect();
+            encoder.memory_barrier_with_resources(&resources);
+        } else {
+            // Declare actual shader writes without a heap-allocated resource list.
+            // The engine uses a serial encoder; Metal ignores these barriers there.
+            // Keep the correct side-effect set explicit for the dispatch ABI.
+            let outputs: &[usize] = match name {
+                "conv_silu" => &[2, 3],
+                "delta_step" => &[5, 6],
+                "split_q_gate" => &[1, 2],
+                "kv_append" => &[2, 3],
+                "delta_norm" | "head_rms" | "rope" | "softmax" => &[0],
+                "matvec_affine" => &[4],
+                "embed_affine" | "gated_rms" | "attn_values" => &[3],
+                "embed_f16" => &[1],
+                _ => &[2],
+            };
+            let mut written: [&ResourceRef; 2] = [&***buffers.first().unwrap(); 2];
+            for (out, &index) in written.iter_mut().zip(outputs) {
+                *out = &**buffers[index];
+            }
+            encoder.memory_barrier_with_resources(&written[..outputs.len()]);
+        }
         Ok(())
     }
     pub fn finish(&self, command: &CommandBufferRef) -> Result<()> {
@@ -186,6 +283,27 @@ impl Gpu {
             command.status()
         );
         Ok(())
+    }
+}
+
+// Called after dispatch_layout validates the four-word matrix ABI. Static names
+// avoid allocating a String for every projection in the token hot path.
+fn specialized_matvec(p: &[u32], aligned: bool) -> Option<&'static str> {
+    let aligned = aligned
+        && p[0] % 4 == 0
+        && p[1] % 512 == 0
+        && u64::from(p[0]) * u64::from(p[1]) <= i32::MAX as u64;
+    match (p[2], p[3], aligned) {
+        (4, 32, true) => Some("matvec_q4_g32_aligned"),
+        (4, 64, true) => Some("matvec_q4_g64_aligned"),
+        (4, 128, true) => Some("matvec_q4_g128_aligned"),
+        (4, 32, _) => Some("matvec_q4_g32"),
+        (4, 64, _) => Some("matvec_q4_g64"),
+        (4, 128, _) => Some("matvec_q4_g128"),
+        (8, 32, _) => Some("matvec_q8_g32"),
+        (8, 64, _) => Some("matvec_q8_g64"),
+        (8, 128, _) => Some("matvec_q8_g128"),
+        _ => None,
     }
 }
 
@@ -383,6 +501,26 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn aligned_dispatch_requires_safe_dimensions() {
+        assert_eq!(
+            specialized_matvec(&[20, 5120, 4, 64], true),
+            Some("matvec_q4_g64_aligned")
+        );
+        for p in [[19, 5120, 4, 64], [20, 192, 4, 64], [524288, 8192, 4, 64]] {
+            assert_eq!(specialized_matvec(&p, true), Some("matvec_q4_g64"));
+        }
+        assert_eq!(specialized_matvec(&[20, 5120, 4, 256], true), None);
+        assert_eq!(
+            specialized_matvec(&[20, 5120, 8, 64], true),
+            Some("matvec_q8_g64")
+        );
+        assert_eq!(
+            specialized_matvec(&[20, 5120, 4, 64], false),
+            Some("matvec_q4_g64")
+        );
+    }
     #[test]
     #[ignore = "requires a real Metal GPU; explicitly run with --ignored"]
     fn affine_q4_little_nibbles_and_bias() -> anyhow::Result<()> {

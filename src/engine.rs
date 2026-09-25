@@ -1,4 +1,5 @@
 //! Own autoregressive execution graph. No third-party inference runtime.
+mod synthetic;
 use std::{path::Path, time::Instant};
 
 use anyhow::{Context, Result, ensure};
@@ -394,6 +395,9 @@ impl Engine {
 
     pub fn config(&self) -> &ModelConfig {
         &self.config
+    }
+    pub fn kernel_mode(&self) -> &str {
+        self.gpu.kernel_mode()
     }
     pub fn device_name(&self) -> &str {
         self.gpu.device.name()

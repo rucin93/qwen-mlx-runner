@@ -12,15 +12,20 @@ templates, JSON, memory mapping, and HTTP.
 
 ## Status
 
-This is an initial, numerically tested implementation, **not a demonstrated
-performance winner**. The six GPU kernel tests and a complete four-layer
-synthetic hybrid model have been tested on a real Apple M1 GPU. The complete
-model test compares every output logit over five tokens against an independent
-scalar Python oracle and checks reset and context bounds.
+This is a numerically tested implementation under active performance tuning.
+The optimized path specializes packed Q4/Q8 matrix-vector products and keeps
+the original path available for same-binary comparisons. Real Metal GPU tests
+cover an independent FP64 matrix oracle and complete four-layer dense and Q4
+synthetic hybrid models, including reset and context bounds.
 
 **Real Qwen3.8-27B output and M5 Pro throughput have not yet been validated.**
 Do not interpret a successful synthetic test, a matrix microbenchmark, or the
 availability of the server as that evidence.
+
+The reported M5 Pro baseline is 1.45–1.55 decode tokens/s. The requested 10×
+improvement remains a target, **not a verified result**. See
+[performance measurements and reproduction](docs/performance-2026-09-25.md)
+for the local M1 evidence and the exact M5 benchmark command.
 
 Implemented:
 
@@ -163,9 +168,34 @@ comparing builds.
 ./target/release/qwen-metal kernel-bench --rows 17408 --cols 5120 --iterations 50
 ```
 
-`kernel-bench` measures only packed Q4 matrix-vector multiplication. Its effective
+`kernel-bench` measures packed Q4/Q8 matrix-vector multiplication (`--bits 4|8`,
+`--group 32|64|128`). `--reference` selects the original kernel and dispatch
+path. Its effective
 weight bandwidth can benefit from repeated cached reads; it is **not LLM
 tokens/second**.
+
+The default `aligned` mode uses a vectorized Q4 kernel for compatible shapes
+and falls back to a tail-safe packed kernel. `QWEN_METAL_GEMV=packed4` selects
+the alternative packed implementation. `QWEN_METAL_REFERENCE=1` restores the
+original matrix and barrier-list path for `bench`, `generate`, `serve`, and
+`synthetic-bench`. These switches leave model weights and context unchanged.
+Final model benchmark JSON reports `kernel_mode`.
+
+For a same-build comparison, save the final JSON from two otherwise identical
+`bench` commands (progress is printed to stderr):
+
+```sh
+QWEN_METAL_REFERENCE=1 ./target/release/qwen-metal bench \
+  --model models/Qwen3.8-27B-4bit \
+  --context 8192 --prompt-tokens 512 --generate-tokens 128 --runs 3 > before.json
+QWEN_METAL_REFERENCE=0 ./target/release/qwen-metal bench \
+  --model models/Qwen3.8-27B-4bit \
+  --context 8192 --prompt-tokens 512 --generate-tokens 128 --runs 3 > after.json
+python3 scripts/compare_bench.py before.json after.json --require-speedup 10
+```
+
+The comparison rejects different workloads and synthetic/microbenchmark JSON.
+It excludes warmup and exits unsuccessfully when the requested speedup is unmet.
 
 ## Tests
 
@@ -179,8 +209,8 @@ The second command explicitly runs tests requiring a real Metal GPU. They fail
 if no device is available; they do not silently succeed. The first command lists
 them as ignored so file-format/API tests can also run in GPU-restricted sandboxes.
 
-`tests/fixtures/tiny` is a small, untrained synthetic model, not Qwen weights.
-Regenerate it and its independent scalar reference logits with:
+`tests/fixtures/tiny` and `tiny-q4` are small, untrained synthetic models,
+not Qwen weights. Regenerate them and their independent scalar reference logits with:
 
 ```sh
 python3 scripts/make_fixture.py

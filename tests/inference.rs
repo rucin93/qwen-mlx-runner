@@ -99,3 +99,31 @@ fn hybrid_forward_matches_independent_scalar_oracle_and_reset() {
         "context overflow must fail before writing cache"
     );
 }
+
+// The packed fixture includes MLX-converted norms/convolutions and exercises
+// embed_affine plus the optimized affine matvec kernels in every layer.
+#[test]
+#[ignore = "requires a real Apple Metal GPU; run cargo test --test inference -- --ignored"]
+fn packed_q4_hybrid_forward_matches_independent_scalar_oracle_and_reset() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny-q4");
+    let gold: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(path.join("golden.json")).unwrap()).unwrap();
+    let mut model = Engine::load(&path, 8).expect("real Metal engine with packed affine Q4");
+    let tokens = gold["tokens"].as_array().unwrap();
+    assert_eq!(tokens.len(), 5);
+    for repetition in 0..2 {
+        model.reset();
+        for (i, token) in tokens.iter().enumerate() {
+            let logits = model.forward(token.as_u64().unwrap() as u32).unwrap();
+            let expected = gold["logits"][i].as_array().unwrap();
+            assert_eq!(logits.len(), expected.len());
+            for (j, (got, want)) in logits.iter().zip(expected).enumerate() {
+                let want = want.as_f64().unwrap() as f32;
+                assert!(
+                    got.is_finite() && (got - want).abs() < 2e-3 + 2e-3 * want.abs(),
+                    "Q4 reset {repetition}, token {i}, logit {j}: {got} vs {want}"
+                );
+            }
+        }
+    }
+}

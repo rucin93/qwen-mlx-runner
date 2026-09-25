@@ -1,0 +1,171 @@
+{
+  "date": "2026-09-25",
+  "host": "Apple M1, 16 GB",
+  "profile": "release",
+  "base_commit": "5686b9eb40de69a39cb31915406b3b7e487ce4b8",
+  "scope": "Local diagnostic evidence only. Not trained 27B throughput or M5 target verification.",
+  "synthetic": {
+    "binary_sha256": "0eaca9f29de774f36798577d16d612e1ee953c73459b3a11bc2964d299403852",
+    "runs": [
+      {
+        "allocated_bytes": 2322415616,
+        "context": 2048,
+        "device": "Apple M1",
+        "kernel_mode": "reference",
+        "kind": "synthetic_reused_weights_zero_history",
+        "load_seconds": 0.556836792,
+        "milliseconds_per_step": 3991.341840333333,
+        "note": "NOT REAL QWEN THROUGHPUT. Shares immutable weights across 64 layers; zero historical KV, one warmup step; lower residency than real checkpoint.",
+        "reference": true,
+        "seconds": 23.948051042,
+        "steps": 6,
+        "zero_history": 512
+      },
+      {
+        "allocated_bytes": 2322415616,
+        "context": 2048,
+        "device": "Apple M1",
+        "kernel_mode": "packed4",
+        "kind": "synthetic_reused_weights_zero_history",
+        "load_seconds": 0.32239775,
+        "milliseconds_per_step": 698.6900486666667,
+        "note": "NOT REAL QWEN THROUGHPUT. Shares immutable weights across 64 layers; zero historical KV, one warmup step; lower residency than real checkpoint.",
+        "reference": false,
+        "seconds": 4.192140292,
+        "steps": 6,
+        "zero_history": 512
+      },
+      {
+        "allocated_bytes": 2322415616,
+        "context": 2048,
+        "device": "Apple M1",
+        "kernel_mode": "aligned",
+        "kind": "synthetic_reused_weights_zero_history",
+        "load_seconds": 0.323435917,
+        "milliseconds_per_step": 576.6201388333333,
+        "note": "NOT REAL QWEN THROUGHPUT. Shares immutable weights across 64 layers; zero historical KV, one warmup step; lower residency than real checkpoint.",
+        "reference": false,
+        "seconds": 3.459720833,
+        "steps": 6,
+        "zero_history": 512
+      },
+      {
+        "allocated_bytes": 2322415616,
+        "context": 2048,
+        "device": "Apple M1",
+        "kernel_mode": "aligned",
+        "kind": "synthetic_reused_weights_zero_history",
+        "load_seconds": 0.325641166,
+        "milliseconds_per_step": 677.083639,
+        "note": "NOT REAL QWEN THROUGHPUT. Shares immutable weights across 64 layers; zero historical KV, one warmup step; lower residency than real checkpoint.",
+        "reference": false,
+        "seconds": 4.062501834,
+        "steps": 6,
+        "zero_history": 512
+      },
+      {
+        "allocated_bytes": 2322415616,
+        "context": 2048,
+        "device": "Apple M1",
+        "kernel_mode": "packed4",
+        "kind": "synthetic_reused_weights_zero_history",
+        "load_seconds": 0.416899041,
+        "milliseconds_per_step": 697.6615625,
+        "note": "NOT REAL QWEN THROUGHPUT. Shares immutable weights across 64 layers; zero historical KV, one warmup step; lower residency than real checkpoint.",
+        "reference": false,
+        "seconds": 4.185969375,
+        "steps": 6,
+        "zero_history": 512
+      }
+    ]
+  },
+  "matvec": {
+    "binary_sha256": "0eaca9f29de774f36798577d16d612e1ee953c73459b3a11bc2964d299403852",
+    "runs": [
+      {
+        "bits": 4,
+        "cols": 5120,
+        "device": "Apple M1",
+        "effective_weight_gb_per_second": 3.2096950811568083,
+        "group_size": 64,
+        "iterations": 60,
+        "kernel_mode": "reference",
+        "kind": "packed_matvec_microbenchmark",
+        "milliseconds_per_matvec": 17.355418066666665,
+        "note": "Repeated synthetic weights may benefit from cache. This is NOT model tokens per second.",
+        "rows": 17408,
+        "seconds": 1.041325084
+      },
+      {
+        "bits": 4,
+        "cols": 5120,
+        "device": "Apple M1",
+        "effective_weight_gb_per_second": 29.245921168518024,
+        "group_size": 64,
+        "iterations": 60,
+        "kernel_mode": "aligned",
+        "kind": "packed_matvec_microbenchmark",
+        "milliseconds_per_matvec": 1.9047305666666667,
+        "note": "Repeated synthetic weights may benefit from cache. This is NOT model tokens per second.",
+        "rows": 17408,
+        "seconds": 0.114283834
+      },
+      {
+        "bits": 4,
+        "cols": 17408,
+        "device": "Apple M1",
+        "effective_weight_gb_per_second": 2.9403374714144266,
+        "group_size": 64,
+        "iterations": 60,
+        "kernel_mode": "reference",
+        "kind": "packed_matvec_microbenchmark",
+        "milliseconds_per_matvec": 18.945308333333333,
+        "note": "Repeated synthetic weights may benefit from cache. This is NOT model tokens per second.",
+        "rows": 5120,
+        "seconds": 1.1367185
+      },
+      {
+        "bits": 4,
+        "cols": 17408,
+        "device": "Apple M1",
+        "effective_weight_gb_per_second": 30.084145049544016,
+        "group_size": 64,
+        "iterations": 60,
+        "kernel_mode": "aligned",
+        "kind": "packed_matvec_microbenchmark",
+        "milliseconds_per_matvec": 1.8516597333333336,
+        "note": "Repeated synthetic weights may benefit from cache. This is NOT model tokens per second.",
+        "rows": 5120,
+        "seconds": 0.111099584
+      },
+      {
+        "bits": 4,
+        "cols": 5120,
+        "device": "Apple M1",
+        "effective_weight_gb_per_second": 2.8975041384816085,
+        "group_size": 64,
+        "iterations": 8,
+        "kernel_mode": "reference",
+        "kind": "packed_matvec_microbenchmark",
+        "milliseconds_per_matvec": 274.244302,
+        "note": "Repeated synthetic weights may benefit from cache. This is NOT model tokens per second.",
+        "rows": 248320,
+        "seconds": 2.193954416
+      },
+      {
+        "bits": 4,
+        "cols": 5120,
+        "device": "Apple M1",
+        "effective_weight_gb_per_second": 28.41889048452718,
+        "group_size": 64,
+        "iterations": 8,
+        "kernel_mode": "aligned",
+        "kind": "packed_matvec_microbenchmark",
+        "milliseconds_per_matvec": 27.961119749999998,
+        "note": "Repeated synthetic weights may benefit from cache. This is NOT model tokens per second.",
+        "rows": 248320,
+        "seconds": 0.223688958
+      }
+    ]
+  }
+}

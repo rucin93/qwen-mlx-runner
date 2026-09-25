@@ -47,3 +47,36 @@ runtime source compiler successfully compiled and executed all kernels.
 
 The synthetic fixture is deliberately small and untrained. No model
 tokens/second result is claimed from it.
+
+## Performance iteration validation (2026-09-25)
+
+On the same real M1 GPU, after selecting the packed and aligned kernels:
+
+```text
+cargo build --release --offline --locked -j 2
+  passed
+cargo test --offline --locked -- --include-ignored
+  library: 36 passed, 0 failed, 0 ignored
+  inference integration: 3 passed, 0 failed, 0 ignored
+  quantized matrix integration: 1 passed, 0 failed, 0 ignored
+cargo fmt --all -- --check
+  passed
+```
+
+The new matrix test checks 270 GPU dispatches against FP64 dot products; its
+cases include Q4/Q8, groups 32/64/128, short and non-SIMD-aligned columns,
+partial output row groups, and both optimized paths plus reference. A new
+packed Q4 hybrid fixture compares five autoregressive steps and a state reset
+against independent scalar Python logits. A host-only test covers unsafe
+signed index products and dispatch fallback.
+
+Independent read-only review found one benchmark-comparator integration bug
+(the accepted mode names differed from the executable); it was fixed and
+rechecked. No remaining actionable correctness findings were reported.
+The reviewer also confirmed that the explicit barriers are ignored on this
+engine's serial encoder, so the resource-list change must not be described as
+a demonstrated GPU fencing speedup.
+
+[Performance evidence](performance-2026-09-25.md) records the final same-binary
+release timings and their limits. Full trained-checkpoint accuracy and the
+requested M5 Pro 10× speedup still need target-machine validation.

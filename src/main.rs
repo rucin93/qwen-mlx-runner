@@ -74,7 +74,17 @@ enum Command {
         #[arg(long, default_value_t = 8192)]
         context: usize,
     },
-    /// Measure only the custom 4-bit matrix-vector kernel, not LLM tokens/s.
+    /// Diagnostic ONLY: real 27B shapes/layer schedule but reused synthetic weights.
+    SyntheticBench {
+        #[arg(long, default_value_t = 2048)]
+        context: usize,
+        /// Historical KV slots are ZERO; this is not a real prompt prefill.
+        #[arg(long, default_value_t = 512)]
+        history: usize,
+        #[arg(long, default_value_t = 3)]
+        steps: usize,
+    },
+    /// Measure a packed matrix-vector kernel, not LLM tokens/s.
     KernelBench {
         #[arg(long, default_value_t = 17408)]
         rows: usize,
@@ -82,12 +92,53 @@ enum Command {
         cols: usize,
         #[arg(long, default_value_t = 50)]
         iterations: usize,
+        #[arg(long, default_value_t = 4)]
+        bits: u32,
+        #[arg(long, default_value_t = 64)]
+        group: usize,
+        /// Use the original unspecialized kernel for A/B comparison.
+        #[arg(long)]
+        reference: bool,
     },
 }
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
+        Command::SyntheticBench {
+            context,
+            history,
+            steps,
+        } => {
+            ensure!(
+                steps > 0
+                    && steps <= 100
+                    && history.checked_add(steps + 1).is_some_and(|n| n <= context),
+                "history + steps + warmup must fit context; steps in 1..100"
+            );
+            let start = Instant::now();
+            let mut engine = Engine::synthetic_qwen27b(context, history)?;
+            let load_seconds = start.elapsed().as_secs_f64();
+            let mut sampler = Sampler::new(42);
+            let mut logits = engine.forward(3)?;
+            let start = Instant::now();
+            for _ in 0..steps {
+                let token = sampler.sample(&logits, 0., 1., 0)?;
+                logits = engine.forward(token)?;
+            }
+            let seconds = start.elapsed().as_secs_f64();
+            println!(
+                "{}",
+                serde_json::to_string_pretty(
+                    &json!({"kind":"synthetic_reused_weights_zero_history",
+                "device":engine.device_name(),"allocated_bytes":engine.allocated_bytes(),"load_seconds":load_seconds,
+                "context":context,"zero_history":history,"steps":steps,"seconds":seconds,"milliseconds_per_step":seconds*1000./steps as f64,
+                "reference":std::env::var("QWEN_METAL_REFERENCE").is_ok_and(|v|v=="1"),
+                "kernel_mode":engine.kernel_mode(),
+                "note":"NOT REAL QWEN THROUGHPUT. Shares immutable weights across 64 layers; zero historical KV, one warmup step; lower residency than real checkpoint."})
+                )?
+            );
+        }
         Command::Inspect { model } => {
             let cp = Checkpoint::open(&model)?;
             let c = &cp.config;
@@ -226,7 +277,7 @@ fn main() -> Result<()> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({"kind":"model_fixed_token_benchmark",
-                "engine_version":env!("CARGO_PKG_VERSION"),"model_path":model,"device":engine.device_name(),
+                "engine_version":env!("CARGO_PKG_VERSION"),"model_path":model,"device":engine.device_name(),"kernel_mode":engine.kernel_mode(),
                 "allocated_bytes":engine.allocated_bytes(),"context_capacity":context,"prompt_tokens":prompt_tokens,
                 "generated_steps":generate_tokens,"load_seconds":load_seconds,"median_decode_tokens_per_second":median,
                 "notes":"one unreported warmup; no prompt cache reuse; greedy; fixed tokens; EOS ignored; not a chat quality evaluation",
@@ -237,10 +288,17 @@ fn main() -> Result<()> {
             rows,
             cols,
             iterations,
+            bits,
+            group,
+            reference,
         } => {
             ensure!(
-                rows > 0 && rows <= 262144 && cols > 0 && cols <= 32768 && cols % 64 == 0,
-                "rows must be 1..262144; cols a multiple of 64 up to 32768"
+                matches!(bits, 4 | 8) && matches!(group, 32 | 64 | 128),
+                "bits must be 4 or 8, group 32/64/128"
+            );
+            ensure!(
+                rows > 0 && rows <= 262144 && cols > 0 && cols <= 32768 && cols % group == 0,
+                "rows must be 1..262144; cols a multiple of group up to 32768"
             );
             ensure!(
                 iterations > 0 && iterations <= 10000,
@@ -252,11 +310,11 @@ fn main() -> Result<()> {
                 "shape exceeds GPU index range"
             );
             objc::rc::autoreleasepool(|| -> Result<()> {
-                let g = Gpu::new()?;
-                let packed = vec![0x76543210u32; elements / 8];
+                let g = Gpu::new_with_reference(reference)?;
+                let packed = vec![0x76543210u32; elements / (32 / bits as usize)];
                 let w = g.upload_bytes(bytemuck::cast_slice(&packed))?;
-                let scale = g.upload_f32(&vec![0.01; elements / 64])?;
-                let bias = g.upload_f32(&vec![-0.07; elements / 64])?;
+                let scale = g.upload_f32(&vec![0.01; elements / group])?;
+                let bias = g.upload_f32(&vec![-0.07; elements / group])?;
                 let x = g.upload_f32(&vec![0.1; cols])?;
                 let y = g.alloc_f32(rows)?;
                 let dispatch = |count: usize| -> Result<f64> {
@@ -268,7 +326,7 @@ fn main() -> Result<()> {
                             e,
                             "matvec_affine",
                             &[&w, &scale, &bias, &x, &y],
-                            &[rows as u32, cols as u32, 4, 64],
+                            &[rows as u32, cols as u32, bits, group as u32],
                             rows * 32,
                             128,
                         )?;
@@ -286,11 +344,13 @@ fn main() -> Result<()> {
                 );
                 println!(
                     "{}",
-                    serde_json::to_string_pretty(&json!({"kind":"q4_matvec_microbenchmark",
+                    serde_json::to_string_pretty(
+                        &json!({"kind":"packed_matvec_microbenchmark", "bits":bits,"group_size":group,"kernel_mode":g.kernel_mode(),
                     "device":g.device.name(),"rows":rows,"cols":cols,"iterations":iterations,"seconds":seconds,
                     "milliseconds_per_matvec":seconds*1000./iterations as f64,
                     "effective_weight_gb_per_second":(w.length()+scale.length()+bias.length()) as f64*iterations as f64/seconds/1e9,
-                    "note":"Repeated synthetic weights may benefit from cache. This is NOT model tokens per second."}))?
+                    "note":"Repeated synthetic weights may benefit from cache. This is NOT model tokens per second."})
+                    )?
                 );
                 Ok(())
             })?;
