@@ -70,6 +70,102 @@ impl Checkpoint {
                 path.join("generation_config.json"),
             )?)?;
         }
+        Self::from_config(path, config_value, config)
+    }
+
+    /// Load the separate, already-sanitized native MLX MTP adapter. It is not
+    /// a standalone causal model and must match its target's feature geometry.
+    pub(crate) fn open_mtp(path: &Path, target: &ModelConfig) -> Result<Self> {
+        ensure!(path.is_dir(), "MTP checkpoint path must be a directory");
+        let mut value: Value = serde_json::from_slice(&fs::read(path.join("config.json"))?)?;
+        ensure!(
+            value["model_type"] == "qwen3_5_mtp",
+            "Expected native qwen3_5_mtp adapter"
+        );
+        ensure!(
+            value["text_config"]["mtp_num_hidden_layers"] == 1,
+            "Only one MTP layer is supported"
+        );
+        ensure!(
+            value["text_config"]["mtp_use_dedicated_embeddings"] == false,
+            "MTP requires shared target embeddings"
+        );
+        ensure!(
+            value["text_config"]
+                .get("attn_output_gate")
+                .is_none_or(|v| v == true),
+            "MTP requires gated attention"
+        );
+        ensure!(
+            value["block_size"]
+                .as_u64()
+                .is_some_and(|n| (2..=4).contains(&n)),
+            "MTP block_size must be 2..=4"
+        );
+        // Reuse text-architecture validation, preserving quantization metadata.
+        value["model_type"] = Value::String("qwen3_5".into());
+        let declared = ModelConfig::from_json(&serde_json::to_string(&value)?)?;
+        for (name, actual, expected) in [
+            ("hidden_size", declared.hidden_size, target.hidden_size),
+            (
+                "intermediate_size",
+                declared.intermediate_size,
+                target.intermediate_size,
+            ),
+            (
+                "num_attention_heads",
+                declared.num_attention_heads,
+                target.num_attention_heads,
+            ),
+            (
+                "num_key_value_heads",
+                declared.num_key_value_heads,
+                target.num_key_value_heads,
+            ),
+            ("head_dim", declared.head_dim, target.head_dim),
+            ("vocab_size", declared.vocab_size, target.vocab_size),
+            (
+                "num_hidden_layers",
+                declared.num_hidden_layers,
+                target.num_hidden_layers,
+            ),
+            ("rotary_dim", declared.rotary_dim(), target.rotary_dim()),
+        ] {
+            ensure!(
+                actual == expected,
+                "MTP {name}={actual} differs from target {expected}"
+            );
+        }
+        ensure!(
+            declared.rope_theta == target.rope_theta
+                && declared.rms_norm_eps == target.rms_norm_eps,
+            "MTP RoPE or RMS parameters differ from target"
+        );
+        ensure!(
+            declared.layer_types == target.layer_types
+                && declared.tie_word_embeddings == target.tie_word_embeddings,
+            "MTP declares a different target architecture"
+        );
+        let cp = Self::from_config(path, value, declared)?;
+        ensure!(
+            cp.tensors.keys().all(|key| key == "fc.weight"
+                || key == "fc.scales"
+                || key == "fc.biases"
+                || key.starts_with("layers.0.")
+                || matches!(
+                    key.as_str(),
+                    "norm.weight" | "pre_fc_norm_embedding.weight" | "pre_fc_norm_hidden.weight"
+                )),
+            "Unsupported MTP tensor namespace: use the separate sanitized adapter"
+        );
+        ensure!(
+            cp.tensors.values().all(|tensor| !tensor.raw_hf),
+            "MTP adapter norms must already be sanitized"
+        );
+        Ok(cp)
+    }
+
+    fn from_config(path: &Path, config_value: Value, config: ModelConfig) -> Result<Self> {
         let quant_value = config_value
             .get("quantization")
             .or_else(|| config_value.get("quantization_config"));

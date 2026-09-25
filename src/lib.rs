@@ -3,5 +3,7 @@ pub mod chat;
 pub mod config;
 pub mod engine;
 pub mod gpu;
+pub mod mtp_chat;
 pub mod server;
+pub mod speculative;
 pub mod weights;

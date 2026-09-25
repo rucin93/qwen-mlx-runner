@@ -1,0 +1,22 @@
+[
+  {
+    "name": "pl-explanation",
+    "prompt": "Wyjaśnij różnicę między współbieżnością a równoległością. Podaj po jednym przykładzie z codziennego życia i programowania. Odpowiedz po polsku."
+  },
+  {
+    "name": "en-code",
+    "prompt": "Write a Rust function that merges two sorted slices of i32 into a sorted Vec without sorting again. Include a small example and state its time complexity."
+  },
+  {
+    "name": "pl-analysis",
+    "prompt": "Mała firma wybiera między kopią zapasową w chmurze a dyskiem w biurze. Porównaj koszt, odtwarzanie i ryzyko utraty danych. Zaproponuj praktyczne rozwiązanie i uzasadnij je."
+  },
+  {
+    "name": "en-rewrite",
+    "prompt": "Rewrite this message as a clear, friendly email, then explain the two main edits: The delivery is late and nobody told us. We need the revised date today because the installation team is waiting and we cannot plan their work."
+  },
+  {
+    "name": "pl-planning",
+    "prompt": "Zaproponuj plan nauki podstaw języka Rust na siedem dni dla osoby znającej Python. Uwzględnij własność pamięci, obsługę błędów i mały projekt końcowy."
+  }
+]

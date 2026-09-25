@@ -1,5 +1,9 @@
 //! Own autoregressive execution graph. No third-party inference runtime.
+mod block;
+mod mtp;
 mod synthetic;
+pub use block::BlockOutput;
+pub use mtp::{Mtp, MtpOutput};
 use std::{path::Path, time::Instant};
 
 use anyhow::{Context, Result, ensure};
@@ -24,6 +28,20 @@ struct Matrix {
 }
 
 impl Matrix {
+    /// Retain immutable GPU storage without copying model weights.
+    fn share(&self) -> Self {
+        Self {
+            weight: self.weight.clone(),
+            scales: self.scales.clone(),
+            biases: self.biases.clone(),
+            rows: self.rows,
+            cols: self.cols,
+            bits: self.bits,
+            group: self.group,
+            metadata_bf16: self.metadata_bf16,
+        }
+    }
+
     fn load(cp: &Checkpoint, gpu: &Gpu, name: &str, rows: usize, cols: usize) -> Result<Self> {
         let data = cp.matrix(name).with_context(|| format!("loading {name}"))?;
         let compacted = match &data {
@@ -249,6 +267,7 @@ pub struct Engine {
     scratch: Scratch,
     position: usize,
     context: usize,
+    block: Option<block::BlockState>,
 }
 
 impl Engine {
@@ -411,6 +430,7 @@ impl Engine {
             scratch,
             position: 0,
             context,
+            block: None,
         };
         engine.reset();
         Ok(engine)
@@ -473,6 +493,9 @@ impl Engine {
 
     /// Called only when the previous synchronous forward has completed.
     pub fn reset(&mut self) {
+        if let Some(block) = &mut self.block {
+            block.pending = None;
+        }
         for layer in &self.layers {
             if let Mixer::Delta(d) = &layer.mixer {
                 for buffer in [&d.conv_state, &d.state] {
@@ -500,6 +523,36 @@ impl Engine {
     }
 
     fn forward_mode(&mut self, token: u32, logits: bool) -> Result<Vec<f32>> {
+        self.validate_forward_token(token)?;
+        let result = objc::rc::autoreleasepool(|| self.forward_inner(token, logits, false))
+            .map(|(logits, _)| logits);
+        // A failed command may have updated recurrent state; never reuse it.
+        if result.is_err() {
+            self.reset();
+        }
+        result
+    }
+
+    /// Return the target representation after its final RMS, including when
+    /// vocabulary projection is skipped during MTP prompt initialization.
+    pub fn forward_with_hidden(
+        &mut self,
+        token: u32,
+        output_logits: bool,
+    ) -> Result<(Vec<f32>, Vec<f32>)> {
+        self.validate_forward_token(token)?;
+        let result = objc::rc::autoreleasepool(|| self.forward_inner(token, output_logits, true));
+        if result.is_err() {
+            self.reset();
+        }
+        result
+    }
+
+    fn validate_forward_token(&self, token: u32) -> Result<()> {
+        ensure!(
+            self.block.as_ref().is_none_or(|b| b.pending.is_none()),
+            "commit or reset the pending verification block before a normal forward"
+        );
         ensure!(
             (token as usize) < self.config.vocab_size,
             "token {token} outside vocabulary"
@@ -509,15 +562,15 @@ impl Engine {
             "context capacity {} exhausted",
             self.context
         );
-        let result = objc::rc::autoreleasepool(|| self.forward_inner(token, logits));
-        // A failed command may have updated recurrent state; never reuse it.
-        if result.is_err() {
-            self.reset();
-        }
-        result
+        Ok(())
     }
 
-    fn forward_inner(&mut self, token: u32, logits: bool) -> Result<Vec<f32>> {
+    fn forward_inner(
+        &mut self,
+        token: u32,
+        logits: bool,
+        hidden: bool,
+    ) -> Result<(Vec<f32>, Vec<f32>)> {
         let (g, c, s) = (&self.gpu, &self.config, &self.scratch);
         let cmd = g.begin();
         let e = g.begin_encoding(cmd);
@@ -672,7 +725,7 @@ impl Engine {
             layer.down.matvec(&e, &s.activated, &s.residual)?;
             run("add", &[&s.x, &s.residual, &s.x], &[h as u32], h, 128)?;
         }
-        if logits {
+        if logits || hidden {
             run(
                 "rms_norm",
                 &[&s.x, &self.norm, &s.normalized],
@@ -680,6 +733,8 @@ impl Engine {
                 32,
                 32,
             )?;
+        }
+        if logits {
             self.head
                 .as_ref()
                 .unwrap_or(&self.embedding)
@@ -688,11 +743,17 @@ impl Engine {
         e.end_encoding()?;
         g.finish(cmd)?;
         self.position += 1;
-        if logits {
+        let output_logits = if logits {
             g.read_f32(&s.logits, c.vocab_size)
         } else {
             Ok(Vec::new())
-        }
+        }?;
+        let output_hidden = if hidden {
+            g.read_f32(&s.normalized, h)?
+        } else {
+            Vec::new()
+        };
+        Ok((output_logits, output_hidden))
     }
 }
 

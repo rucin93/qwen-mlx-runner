@@ -5,8 +5,10 @@ use qwen_metal::{
     chat::{GenerationRequest, Message, Sampler, TextGenerator},
     engine::{ChatEngine, Engine},
     gpu::Gpu,
+    mtp_chat::MtpChatEngine,
     weights::Checkpoint,
 };
+mod mtp_benchmark;
 mod system_status;
 use serde_json::json;
 use std::{
@@ -43,6 +45,11 @@ enum Command {
     Serve {
         #[arg(long)]
         model: PathBuf,
+        /// Optional native MTP adapter; only target-verified tokens are emitted.
+        #[arg(long)]
+        mtp: Option<PathBuf>,
+        #[arg(long, default_value_t = 3)]
+        mtp_block_size: usize,
         #[arg(long, default_value_t = 8192)]
         context: usize,
         #[arg(long, default_value = "127.0.0.1:8080")]
@@ -52,6 +59,11 @@ enum Command {
     Generate {
         #[arg(long)]
         model: PathBuf,
+        /// Optional native MTP adapter; only target-verified tokens are emitted.
+        #[arg(long)]
+        mtp: Option<PathBuf>,
+        #[arg(long, default_value_t = 3)]
+        mtp_block_size: usize,
         #[arg(long)]
         prompt: String,
         #[arg(long, default_value_t = 8192)]
@@ -68,6 +80,37 @@ enum Command {
         seed: u64,
         #[arg(long)]
         thinking: bool,
+    },
+    /// Real verified-token mixed-workload benchmark, optionally paired with the target.
+    MtpBench {
+        #[arg(long)]
+        model: PathBuf,
+        #[arg(long)]
+        mtp: PathBuf,
+        #[arg(long, default_value_t = 8192)]
+        context: usize,
+        #[arg(long, default_value_t = 128)]
+        max_tokens: usize,
+        #[arg(long, default_value_t = 3)]
+        runs: usize,
+        #[arg(long, default_value_t = 3)]
+        block_size: usize,
+        /// JSON list of {name,prompt}; omit for the five built-in Polish/English prompts.
+        #[arg(long)]
+        prompts: Option<PathBuf>,
+        #[arg(long, default_value_t = 0.)]
+        temperature: f32,
+        #[arg(long, default_value_t = 0.8)]
+        top_p: f32,
+        #[arg(long, default_value_t = 20)]
+        top_k: usize,
+        #[arg(long, default_value_t = 42)]
+        seed: u64,
+        #[arg(long)]
+        thinking: bool,
+        /// Compare against sequential target generation on the same loaded model.
+        #[arg(long)]
+        compare: bool,
     },
     /// Fixed-token autoregressive benchmark; EOS is deliberately ignored.
     Bench {
@@ -136,6 +179,35 @@ enum Command {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
+        Command::MtpBench {
+            model,
+            mtp,
+            context,
+            max_tokens,
+            runs,
+            block_size,
+            prompts,
+            temperature,
+            top_p,
+            top_k,
+            seed,
+            thinking,
+            compare,
+        } => mtp_benchmark::run(mtp_benchmark::Options {
+            model,
+            mtp,
+            context,
+            max_tokens,
+            runs,
+            block_size,
+            prompts,
+            temperature,
+            top_p,
+            top_k,
+            seed,
+            thinking,
+            compare,
+        })?,
         Command::Profile {
             model,
             context,
@@ -243,6 +315,8 @@ fn main() -> Result<()> {
         }
         Command::Serve {
             model,
+            mtp,
+            mtp_block_size,
             context,
             listen,
         } => {
@@ -250,20 +324,39 @@ fn main() -> Result<()> {
                 listen.ip().is_loopback(),
                 "--listen must be a loopback address"
             );
-            let engine = ChatEngine::load(&model, context)?;
-            eprintln!(
-                "Loaded {} on {}; {:.2} GiB allocated. Listening on http://{listen}",
-                engine.model_id(),
-                engine.engine().device_name(),
-                engine.engine().allocated_bytes() as f64 / 1073741824.
+            ensure!(
+                mtp.is_some() || mtp_block_size == 3,
+                "--mtp-block-size requires --mtp"
             );
+            let engine: Box<dyn TextGenerator> = if let Some(path) = mtp {
+                let engine = MtpChatEngine::load(&model, &path, context, mtp_block_size)?;
+                eprintln!(
+                    "Loaded {} with native MTP block size {} on {}; {:.2} GiB device allocated. Listening on http://{listen}",
+                    engine.model_id(),
+                    mtp_block_size,
+                    engine.engine().device_name(),
+                    engine.engine().allocated_bytes() as f64 / 1073741824.
+                );
+                Box::new(engine)
+            } else {
+                let engine = ChatEngine::load(&model, context)?;
+                eprintln!(
+                    "Loaded {} on {}; {:.2} GiB allocated. Listening on http://{listen}",
+                    engine.model_id(),
+                    engine.engine().device_name(),
+                    engine.engine().allocated_bytes() as f64 / 1073741824.
+                );
+                Box::new(engine)
+            };
             tokio::runtime::Builder::new_multi_thread()
                 .enable_all()
                 .build()?
-                .block_on(qwen_metal::server::serve(Box::new(engine), listen))?;
+                .block_on(qwen_metal::server::serve(engine, listen))?;
         }
         Command::Generate {
             model,
+            mtp,
+            mtp_block_size,
             prompt,
             context,
             max_tokens,
@@ -273,7 +366,10 @@ fn main() -> Result<()> {
             seed,
             thinking,
         } => {
-            let mut engine = ChatEngine::load(&model, context)?;
+            ensure!(
+                mtp.is_some() || mtp_block_size == 3,
+                "--mtp-block-size requires --mtp"
+            );
             let request = GenerationRequest {
                 messages: vec![Message {
                     role: "user".into(),
@@ -286,10 +382,7 @@ fn main() -> Result<()> {
                 seed,
                 enable_thinking: thinking,
             };
-            if thinking {
-                print!("<think>\n");
-            }
-            let output = engine.generate(&request, &mut |text| {
+            let mut stream = |text: &str| {
                 if text.is_empty() {
                     return true;
                 }
@@ -297,13 +390,34 @@ fn main() -> Result<()> {
                 out.write_all(text.as_bytes())
                     .and_then(|_| out.flush())
                     .is_ok()
-            })?;
+            };
+            let (output, mtp_stats) = if let Some(path) = mtp {
+                let mut engine = MtpChatEngine::load(&model, &path, context, mtp_block_size)?;
+                if thinking {
+                    print!("<think>\n");
+                }
+                let (output, stats) = engine.generate_with_stats(&request, &mut stream)?;
+                (output, Some(stats))
+            } else {
+                let mut engine = ChatEngine::load(&model, context)?;
+                if thinking {
+                    print!("<think>\n");
+                }
+                (engine.generate(&request, &mut stream)?, None)
+            };
             println!();
-            eprintln!(
-                "{}",
-                json!({"prompt_tokens":output.prompt_tokens,"completion_tokens":output.completion_tokens,
-                "prefill_seconds":output.prefill_seconds,"decode_seconds":output.decode_seconds,"finish_reason":output.finish_reason})
-            );
+            let mut report = json!({"prompt_tokens":output.prompt_tokens,"completion_tokens":output.completion_tokens,
+                "prefill_seconds":output.prefill_seconds,"decode_seconds":output.decode_seconds,"finish_reason":output.finish_reason});
+            if let Some(stats) = mtp_stats {
+                report["mtp_block_size"] = json!(mtp_block_size);
+                report["mtp_stats"] = serde_json::to_value(stats)?;
+                report["sustained_decode_tokens_per_second"] = json!(
+                    (output.decode_seconds > 0.)
+                        .then(|| output.completion_tokens.saturating_sub(1) as f64
+                            / output.decode_seconds)
+                );
+            }
+            eprintln!("{report}");
         }
         Command::Bench {
             model,
@@ -581,4 +695,101 @@ fn profile_step(engine: &mut Engine, backend: ProfileBackend) -> Result<serde_js
         "summed_kernel_seconds":rows.as_ref().map(|rows| rows.iter().map(|r| r.gpu_seconds).sum::<f64>()),
         "operations":rows
     }))
+}
+
+#[cfg(test)]
+mod cli_tests {
+    use super::*;
+
+    #[test]
+    fn existing_generate_defaults_keep_mtp_opt_in() {
+        let cli = Cli::try_parse_from([
+            "qwen-metal",
+            "generate",
+            "--model",
+            "target",
+            "--prompt",
+            "hello",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Generate {
+                mtp,
+                mtp_block_size,
+                context,
+                temperature,
+                max_tokens,
+                ..
+            } => {
+                assert!(mtp.is_none());
+                assert_eq!(mtp_block_size, 3);
+                assert_eq!(context, 8192);
+                assert_eq!(temperature, 0.7);
+                assert_eq!(max_tokens, 256);
+            }
+            _ => panic!("wrong command"),
+        }
+    }
+
+    #[test]
+    fn mtp_benchmark_defaults_are_greedy_with_explicit_paired_option() {
+        let cli = Cli::try_parse_from([
+            "qwen-metal",
+            "mtp-bench",
+            "--model",
+            "target",
+            "--mtp",
+            "adapter",
+            "--compare",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::MtpBench {
+                temperature,
+                block_size,
+                runs,
+                max_tokens,
+                compare,
+                prompts,
+                ..
+            } => {
+                assert_eq!(temperature, 0.);
+                assert_eq!(block_size, 3);
+                assert_eq!(runs, 3);
+                assert_eq!(max_tokens, 128);
+                assert!(compare);
+                assert!(prompts.is_none());
+            }
+            _ => panic!("wrong command"),
+        }
+        assert!(Cli::try_parse_from(["qwen-metal", "mtp-bench", "--model", "target"]).is_err());
+    }
+
+    #[test]
+    fn server_accepts_mtp_adapter_and_block_size_without_changing_listen_default() {
+        let cli = Cli::try_parse_from([
+            "qwen-metal",
+            "serve",
+            "--model",
+            "target",
+            "--mtp",
+            "adapter",
+            "--mtp-block-size",
+            "4",
+        ])
+        .unwrap();
+        match cli.command {
+            Command::Serve {
+                mtp,
+                mtp_block_size,
+                listen,
+                ..
+            } => {
+                assert_eq!(mtp, Some(PathBuf::from("adapter")));
+                assert_eq!(mtp_block_size, 4);
+                assert_eq!(listen, "127.0.0.1:8080".parse::<SocketAddr>().unwrap());
+            }
+            _ => panic!("wrong command"),
+        }
+    }
 }

@@ -37,6 +37,12 @@ BF16 measurement cannot be attributed to a new kernel in v0.5; its active shader
 path is unchanged. Power conditions are the leading explanation, pending a
 controlled comparison on the same build.
 
+An **experimental native MTP path** now verifies blocks of up to four positions
+with shared weight reads. The default is one target token plus two proposals
+from the model's separate 239 MB MTP adapter. This is the next candidate for the
+requested approximately 32 tokens/s; **32 tokens/s has not been measured**.
+See [setup, mixed-prompt benchmark and limitations](docs/native-mtp.md).
+
 Earlier results and implementation evidence remain in the
 [first iteration](docs/performance-2026-09-25.md),
 [v0.2 profiling](docs/performance-v0.2.md),
@@ -54,18 +60,22 @@ Implemented:
 - Hybrid Gated DeltaNet recurrence, causal depthwise convolution, grouped-query
   attention, partial RoPE, gated norms, SwiGLU, and residual connections.
 - GPU-resident weights, preallocated scratch space and explicit context capacity.
-- One GPU command buffer per token; no CPU/GPU synchronization between layers.
+- One GPU command buffer per target token or verification block; no CPU/GPU
+  synchronization between target layers.
 - Checkpoint-provided tokenizer and chat template, deterministic seeded sampling.
 - Single active generation, bounded request queue, streaming HTTP responses,
   cancellation, and exact-prefix reuse for the most recent conversation.
+- Optional native MTP generation with causal block verification, GPU state
+  rollback, and greedy or corrected stochastic sampling. No external inference
+  runtime is required; the adapter shares the target embedding and output head.
 
 Current limits:
 
 - Text input only; no images, audio, tools, MoE, or non-default RoPE scaling.
-- Prefill is sequential. Intermediate prompt tokens skip the final vocabulary
-  projection, but there is no batched matrix-matrix prefill yet.
-- No MTP/speculative decoding, Flash Attention, GPU sampling, or M5-specific
-  tensor acceleration yet. These are potential improvements, not hidden features.
+- The ordinary path uses sequential prefill and supports recent-prefix reuse.
+  The experimental MTP path resets caches per request; see its separate timing
+  and prefill results before choosing it for repeated long conversations.
+- No Flash Attention, GPU sampling, or M5-specific tensor acceleration yet.
 - Activations, KV cache, and recurrent state use FP32. This is a numerical
   baseline and uses more cache memory than a mixed-precision implementation.
 - GGUF, AWQ, GPTQ, NVFP4, MXFP4, and arbitrary quantization schemes are unsupported.
