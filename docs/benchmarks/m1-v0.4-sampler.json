@@ -1,0 +1,13 @@
+{
+  "kind": "actual_greedy_sampler_cpu_microbenchmark",
+  "vocab": 248320,
+  "warmup_calls": 100,
+  "measured_calls": 500,
+  "mean_ms": 1.0904210799999985,
+  "median_ms": 1.0593339999999998,
+  "min_ms": 0.776166,
+  "max_ms": 5.621334,
+  "note": "Actual qwen_metal::chat::Sampler::sample linked from latest local release rlib; synthetic finite CPU-resident logits; not M5 nor model throughput",
+  "provenance": "Local Apple M1 CPU, actual Sampler::sample from v0.4 release library, not M5 or full-model throughput.",
+  "rlib_sha256": "413538acc225b630db12b950e30916ca1c050f4b30fda9f04c95d1925a1b0b76"
+}

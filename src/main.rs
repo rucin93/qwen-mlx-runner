@@ -1,11 +1,13 @@
 use anyhow::{Context, Result, ensure};
 use clap::{Parser, Subcommand, ValueEnum};
 use qwen_metal::{
+    benchmark_timing::{PhaseTimings, StepTiming},
     chat::{GenerationRequest, Message, Sampler, TextGenerator},
     engine::{ChatEngine, Engine},
     gpu::Gpu,
     weights::Checkpoint,
 };
+mod system_status;
 use serde_json::json;
 use std::{
     io::{self, Write},
@@ -79,6 +81,9 @@ enum Command {
         runs: usize,
         #[arg(long, default_value_t = 8192)]
         context: usize,
+        /// Record sustained CPU/GPU timing without changing the command graph.
+        #[arg(long)]
+        timing: bool,
     },
     /// Diagnostic ONLY: real 27B shapes/layer schedule but reused synthetic weights.
     SyntheticBench {
@@ -306,6 +311,7 @@ fn main() -> Result<()> {
             generate_tokens,
             runs,
             context,
+            timing,
         } => {
             ensure!(
                 prompt_tokens > 0 && generate_tokens > 0 && runs > 0 && runs <= 100,
@@ -321,29 +327,73 @@ fn main() -> Result<()> {
             let mut engine = Engine::load(&model, context)?;
             let load_seconds = load.elapsed().as_secs_f64();
             let mut records = Vec::new();
+            let mut warmup_run = None;
             for run in 0..=runs {
                 engine.reset();
+                // Preallocate and sample system conditions outside timed phases.
+                let mut prefill_timing = timing.then(|| PhaseTimings::with_capacity(prompt_tokens));
+                let mut decode_timing =
+                    timing.then(|| PhaseTimings::with_capacity(generate_tokens));
+                let before_prefill = timing.then(system_status::snapshot);
                 let start = Instant::now();
                 let mut logits = Vec::new();
                 // Synthetic fixed token sequence avoids tokenizer/prompt variability.
                 for i in 0..prompt_tokens {
                     let token = ((i * 17 + 3) % engine.config().vocab_size) as u32;
+                    let history = engine.position();
+                    let step_start = timing.then(Instant::now);
                     logits = engine.prefill_token(token, i + 1 == prompt_tokens)?;
+                    if let Some(samples) = &mut prefill_timing {
+                        let forward_seconds = step_start.unwrap().elapsed().as_secs_f64();
+                        samples.push(StepTiming {
+                            history,
+                            sampling_seconds: 0.,
+                            forward_seconds,
+                            frame: engine.last_frame_timing(),
+                        })?;
+                    }
                 }
                 let prefill_seconds = start.elapsed().as_secs_f64();
+                let before_decode = timing.then(system_status::snapshot);
                 let start = Instant::now();
                 let mut sampler = Sampler::new(42);
                 for _ in 0..generate_tokens {
+                    let sampling_start = timing.then(Instant::now);
                     let token = sampler.sample(&logits, 0., 1., 0)?;
+                    let sampling_seconds = sampling_start.map(|t| t.elapsed().as_secs_f64());
+                    let history = engine.position();
+                    let step_start = timing.then(Instant::now);
                     logits = engine.forward(token)?;
+                    if let Some(samples) = &mut decode_timing {
+                        let forward_seconds = step_start.unwrap().elapsed().as_secs_f64();
+                        samples.push(StepTiming {
+                            history,
+                            sampling_seconds: sampling_seconds.unwrap(),
+                            forward_seconds,
+                            frame: engine.last_frame_timing(),
+                        })?;
+                    }
                 }
                 let decode_seconds = start.elapsed().as_secs_f64();
-                let row = json!({"run":run,"warmup":run==0,"prefill_seconds":prefill_seconds,
+                let after_decode = timing.then(system_status::snapshot);
+                let mut row = json!({"run":run,"warmup":run==0,"prefill_seconds":prefill_seconds,
                     "prefill_tokens_per_second":prompt_tokens as f64/prefill_seconds,
                     "decode_seconds":decode_seconds,"decode_tokens_per_second":generate_tokens as f64/decode_seconds});
                 eprintln!("{row}");
+                if let (Some(prefill), Some(decode)) = (prefill_timing, decode_timing) {
+                    row["timing"] = json!({
+                        "prefill":prefill.report(), "decode":decode.report(),
+                        "conditions_before_prefill":before_prefill,
+                        "conditions_before_decode":before_decode,
+                        "conditions_after_decode":after_decode,
+                        "prefill_final_token_has_logits":true,
+                        "note":"Normal one-command-buffer execution. Sampling and forward are separate. GPU overlaps completion wait. Only the last prefill token computes/reads logits. System conditions are snapshots outside timed phases, not GPU frequency or temperature measurements."
+                    });
+                }
                 if run > 0 {
                     records.push(row);
+                } else if timing {
+                    warmup_run = Some(row);
                 }
             }
             let mut speeds: Vec<f64> = records
@@ -356,17 +406,22 @@ fn main() -> Result<()> {
             } else {
                 (speeds[speeds.len() / 2 - 1] + speeds[speeds.len() / 2]) / 2.
             };
-            println!(
-                "{}",
-                serde_json::to_string_pretty(&json!({"kind":"model_fixed_token_benchmark",
+            let mut report = json!({"kind":"model_fixed_token_benchmark",
                 "engine_version":env!("CARGO_PKG_VERSION"),"model_path":model,"device":engine.device_name(),"kernel_mode":engine.kernel_mode(),"norm_mode":engine.norm_mode(),
                 "attention_mode":engine.attention_mode(),
                 "metadata_mode":engine.metadata_mode(),"compacted_matrices":engine.metadata_stats().0,"metadata_saved_bytes":engine.metadata_stats().1,
                 "allocated_bytes":engine.allocated_bytes(),"context_capacity":context,"prompt_tokens":prompt_tokens,
                 "generated_steps":generate_tokens,"load_seconds":load_seconds,"median_decode_tokens_per_second":median,
                 "notes":"one unreported warmup; no prompt cache reuse; greedy; fixed tokens; EOS ignored; not a chat quality evaluation",
-                "runs":records}))?
-            );
+                "runs":records});
+            if let Some(warmup) = warmup_run {
+                report["warmup_run"] = warmup;
+                report["timing_enabled"] = json!(true);
+                report["notes"] = json!(
+                    "one separately reported warmup excluded from median; no prompt cache reuse; greedy; fixed tokens; EOS ignored; not a chat quality evaluation; timing adds host bookkeeping, no extra GPU encoders or waits"
+                );
+            }
+            println!("{}", serde_json::to_string_pretty(&report)?);
         }
         Command::KernelBench {
             rows,

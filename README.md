@@ -33,6 +33,9 @@ and optional lossless BF16 metadata storage.
 The [v0.4 follow-up](docs/performance-v0.4.md) records the successful M5 profile:
 parallel RMS reduced one normal step from 83.18 to 72.08 ms. These single-step
 measurements do not establish a new full-benchmark token rate.
+Subsequent v0.3 sustained results were 7.45 tokens/s for parallel RMS with FP32
+metadata and 8.03 with BF16 metadata. The [v0.5 diagnostic notes](docs/performance-v0.5.md)
+explain the gap between those results and the short profile measurements.
 
 Implemented:
 
@@ -255,6 +258,29 @@ python3 scripts/compare_bench.py before.json after.json --require-speedup 10
 
 The comparison rejects different workloads and synthetic/microbenchmark JSON.
 It excludes warmup and exits unsuccessfully when the requested speedup is unmet.
+
+Add `--timing` to `bench` to record ordinary per-token CPU/GPU intervals during
+the sustained workload. It uses the same one-encoder, one-command-buffer path,
+without hardware counters or per-operation waits. It adds host clocks and
+preallocated scalar samples; durations include this small bookkeeping overhead.
+Each run's `timing` contains prefill/decode distributions and blocks of 32 tokens,
+separating sampling, forward, CPU encoding, commit, completion wait and GPU time.
+GPU and wait overlap. `unclassified_host` is the remainder of forward wall time,
+including readback, autorelease and other host work; it is not isolated readback.
+Missing command timestamps produce null frame-derived summaries with coverage
+counts. A separate `warmup_run` is retained but excluded from the median.
+
+Power/thermal conditions are read-only macOS snapshots outside the timed phases.
+They do not report GPU frequency or temperature and do not change power settings.
+The final prefill token is marked as computing logits, unlike preceding tokens.
+Example diagnostic run (one warmup and one measured run):
+
+```sh
+QWEN_METAL_NORM=parallel QWEN_METAL_METADATA=bf16 \
+  ./target/release/qwen-metal bench --timing \
+  --model models/Qwen3.8-27B-4bit --context 8192 \
+  --prompt-tokens 512 --generate-tokens 128 --runs 1 > timing.json
+```
 
 ## Tests
 

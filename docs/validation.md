@@ -189,3 +189,55 @@ The recorded mode fields matched the selected options. Final formatting and
 Read-only review found no actionable indexing, barrier, aliasing or mode-routing
 issue. The default remains serial until full target-machine evidence supports
 promotion. No v0.4 M5 speedup is claimed.
+
+## v0.5 sustained timing validation
+
+The next user-provided sustained M5 results were 7.44877 tokens/s for parallel
+RMS/FP32 metadata and 8.03204 for parallel RMS/BF16 metadata. They did not establish
+the intended 15 tokens/s. The user confirmed sequential execution without another
+GPU generation workload. Both records and their provenance are retained in
+`docs/performance-v0.5.md` and its linked JSON files.
+
+The new `bench --timing` leaves the normal GPU execution graph unchanged. Local
+validation with actual Metal access passed:
+
+```text
+cargo test --offline --locked -- --include-ignored
+  55 library tests and 11 integration tests passed (66 total)
+  0 failed, 0 ignored
+cargo test --offline --locked --test bench_timing_cli -- --include-ignored
+  passed after adding phase-boundary and untimed-output checks
+cargo build --release --offline --locked -j 2
+  passed
+cargo fmt --all -- --check
+  passed
+git diff --check
+  passed
+```
+
+Seven new CPU tests check known aggregate values and nearest-rank percentiles,
+empty/partial phases, 1/31/32/33-token block boundaries, missing timestamps,
+invalid/overflowing durations, relative floating-point rounding, and GPU/wait
+overlap. A real CLI test checks the warmup and measured 33-token phases, exact
+history ranges, sample coverage, phase wall-time containment, and exclusion of
+warmup from the median. A separate untimed invocation retains the old output
+shape without timing or warmup additions.
+
+Independent review found no actionable issue in timestamp aggregation, execution
+boundaries, warmup handling or the availability-guarded Objective-C system-state
+reads. Those snapshots follow the BOOL and NSInteger ABIs verified in the local
+SDK; unavailable properties yield null. They neither change power settings nor
+measure GPU frequency or temperature.
+
+The actual release greedy sampler was also measured independently on the M1
+using 248,320 finite logits: 100 warmups and 500 measured calls gave a median of
+1.059 ms. This bounds a local CPU cost; it is not a target M5 result. No v0.5
+inference speedup is claimed: its purpose is to resolve the unexplained sustained
+latency using the existing inference path.
+
+The final v0.5 release CLI was also exercised with parallel RMS and BF16 metadata
+on the independent tiny BF16 fixture. Warmup and measured phases each contained
+33 valid GPU samples for prefill and decode, with correct block/history ranges
+and phase containment. It reported 33 compacted matrices and 6,576 bytes saved.
+The local system snapshots returned Low Power Mode false and thermal state
+`fair`; these describe the M1 test host only, not the user's M5.

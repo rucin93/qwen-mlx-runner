@@ -1,0 +1,44 @@
+{
+  "context_capacity": 8192,
+  "device": "Apple M5 Pro",
+  "engine_version": "0.3.0",
+  "generated_steps": 128,
+  "kernel_mode": "aligned",
+  "kind": "model_fixed_token_benchmark",
+  "model_path": "models/Qwen3.8-27B-4bit",
+  "norm_mode": "parallel",
+  "notes": "one unreported warmup; no prompt cache reuse; greedy; fixed tokens; EOS ignored; not a chat quality evaluation",
+  "prompt_tokens": 512,
+  "metadata_mode": "f32",
+  "allocated_bytes": 18055610368,
+  "compacted_matrices": 0,
+  "load_seconds": 25.967165791,
+  "median_decode_tokens_per_second": 7.448767807976368,
+  "metadata_saved_bytes": 0,
+  "runs": [
+    {
+      "run": 1,
+      "warmup": false,
+      "decode_seconds": 17.933009791,
+      "decode_tokens_per_second": 7.1376752420131435,
+      "prefill_seconds": 68.110120541,
+      "prefill_tokens_per_second": 7.517238200918955
+    },
+    {
+      "run": 2,
+      "warmup": false,
+      "decode_seconds": 17.184050208,
+      "decode_tokens_per_second": 7.448767807976368,
+      "prefill_seconds": 65.979046958,
+      "prefill_tokens_per_second": 7.7600393398516605
+    },
+    {
+      "run": 3,
+      "warmup": false,
+      "decode_seconds": 16.883308708,
+      "decode_tokens_per_second": 7.5814523215670615,
+      "prefill_seconds": 65.327299,
+      "prefill_tokens_per_second": 7.837458579146216
+    }
+  ]
+}
