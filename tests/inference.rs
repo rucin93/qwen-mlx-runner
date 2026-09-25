@@ -1,0 +1,101 @@
+use qwen_metal::engine::Engine;
+use std::path::Path;
+
+#[test]
+#[ignore = "requires a real Apple Metal GPU"]
+fn chat_prefix_reuse_and_cancelled_state_match_fresh_generation() {
+    use qwen_metal::{
+        chat::{GenerationRequest, Message, TextGenerator},
+        engine::ChatEngine,
+    };
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny");
+    let request = GenerationRequest {
+        messages: vec![Message {
+            role: "user".into(),
+            content: "w6 w7".into(),
+        }],
+        max_tokens: 6,
+        temperature: 0.,
+        top_p: 1.,
+        top_k: 0,
+        seed: 42,
+        enable_thinking: false,
+    };
+    let mut reused = ChatEngine::load(&path, 128).unwrap();
+    let initial = reused.generate(&request, &mut |_| true).unwrap();
+    let mut continuation = request.clone();
+    continuation.messages.push(Message {
+        role: "assistant".into(),
+        content: initial.text,
+    });
+    continuation.messages.push(Message {
+        role: "user".into(),
+        content: "w8".into(),
+    });
+    let warm = reused.generate(&continuation, &mut |_| true).unwrap();
+    let mut fresh = ChatEngine::load(&path, 128).unwrap();
+    let cold = fresh.generate(&continuation, &mut |_| true).unwrap();
+    assert_eq!(
+        (warm.text, warm.completion_tokens),
+        (cold.text, cold.completion_tokens)
+    );
+    // Cancel in the generation phase, then ensure the next request has no stale state.
+    let mut chunks = 0;
+    let cancelled = reused
+        .generate(&request, &mut |part| {
+            if !part.is_empty() {
+                chunks += 1;
+            }
+            chunks < 2
+        })
+        .unwrap();
+    assert_eq!(cancelled.finish_reason, "cancelled");
+    let after = reused.generate(&request, &mut |_| true).unwrap();
+    fresh.clear_cache();
+    let expected = fresh.generate(&request, &mut |_| true).unwrap();
+    assert_eq!(
+        (after.text, after.completion_tokens),
+        (expected.text, expected.completion_tokens)
+    );
+}
+
+// Catches layout, norm-offset, RoPE, recurrent-state and layer-order bugs by
+// comparing the complete GPU path to independently generated scalar logits.
+#[test]
+#[ignore = "requires a real Apple Metal GPU; run cargo test --test inference -- --ignored"]
+fn hybrid_forward_matches_independent_scalar_oracle_and_reset() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/tiny");
+    let gold: serde_json::Value =
+        serde_json::from_str(&std::fs::read_to_string(path.join("golden.json")).unwrap()).unwrap();
+    let mut model = Engine::load(&path, 8).expect("real Metal engine");
+    let tokens = gold["tokens"].as_array().unwrap();
+    for repetition in 0..2 {
+        model.reset();
+        for (i, token) in tokens.iter().enumerate() {
+            let logits = model.forward(token.as_u64().unwrap() as u32).unwrap();
+            for (j, (got, want)) in logits
+                .iter()
+                .zip(gold["logits"][i].as_array().unwrap())
+                .enumerate()
+            {
+                let want = want.as_f64().unwrap() as f32;
+                assert!(
+                    (got - want).abs() < 3e-4,
+                    "reset {repetition}, token {i}, logit {j}: {got} vs {want}"
+                );
+            }
+        }
+    }
+    model.reset();
+    assert!(
+        model.forward(64).is_err(),
+        "out-of-vocabulary token must be rejected"
+    );
+    for _ in 0..8 {
+        model.forward(3).unwrap();
+    }
+    assert!(
+        model.forward(3).is_err(),
+        "context overflow must fail before writing cache"
+    );
+}
