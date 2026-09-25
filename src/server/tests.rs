@@ -795,6 +795,13 @@ async fn opencode_sdk_tool_round_trip() {
                     reply.tool_call_id.as_deref() == Some(&call.id),
                     "tool ID not preserved"
                 );
+                if r.enable_thinking {
+                    anyhow::ensure!(
+                        r.messages.iter().any(|m| m.role == "assistant"
+                            && m.reasoning_content.as_deref() == Some("I should read README.md.")),
+                        "reasoning history not preserved"
+                    );
+                }
                 "Done."
             } else {
                 anyhow::ensure!(r.tools.enabled(), "tools missing from SDK request");
@@ -806,11 +813,25 @@ async fn opencode_sdk_tool_round_trip() {
                 );
                 "<tool_call><function=read_file><parameter=path>README.md</parameter></function></tool_call>"
             };
+            let text = if r.enable_thinking {
+                anyhow::ensure!(
+                    r.reasoning_effort.as_deref() == Some("medium"),
+                    "reasoning effort not forwarded"
+                );
+                let reasoning = if r.messages.iter().any(|m| m.role == "tool") {
+                    "The file is available."
+                } else {
+                    "I should read README.md."
+                };
+                format!("{reasoning}</think>{text}")
+            } else {
+                text.to_owned()
+            };
             for c in text.chars() {
                 anyhow::ensure!(callback(&c.to_string()), "cancelled");
             }
             Ok(GenerationOutput {
-                text: text.into(),
+                text,
                 prompt_tokens: 12,
                 completion_tokens: 7,
                 finish_reason: "stop".into(),
@@ -852,6 +873,123 @@ async fn opencode_sdk_tool_round_trip() {
     assert!(
         run.status.success(),
         "stdout: {}\nstderr: {}",
+        String::from_utf8_lossy(&run.stdout),
+        String::from_utf8_lossy(&run.stderr)
+    );
+    println!("{}", String::from_utf8_lossy(&run.stdout));
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+#[ignore = "requires Node.js and an installed OpenCode CLI"]
+async fn opencode_cli_reasoning_and_tool_history() {
+    struct CliReasoningEngine {
+        path: String,
+        started: Arc<std::sync::atomic::AtomicUsize>,
+        completed: Arc<std::sync::atomic::AtomicUsize>,
+    }
+    impl TextGenerator for CliReasoningEngine {
+        fn model_id(&self) -> &str {
+            "Qwen3.8-27B-4bit"
+        }
+        fn prepare_request(&self, _: &mut GenerationRequest) -> Result<()> {
+            Ok(())
+        }
+        fn generate(
+            &mut self,
+            request: &GenerationRequest,
+            callback: &mut dyn FnMut(&str) -> bool,
+        ) -> Result<GenerationOutput> {
+            self.started.fetch_add(1, Ordering::Relaxed);
+            anyhow::ensure!(request.enable_thinking, "OpenCode did not enable reasoning");
+            anyhow::ensure!(
+                request.reasoning_effort.as_deref() == Some("medium"),
+                "OpenCode did not forward medium reasoning effort"
+            );
+            let text = if let Some(result) = request.messages.iter().find(|m| m.role == "tool") {
+                anyhow::ensure!(
+                    result.content.contains("Fixture document: 42."),
+                    "fixture file was not read"
+                );
+                anyhow::ensure!(
+                    request.messages.iter().any(|m| m.role == "assistant"
+                        && m.reasoning_content.as_deref() == Some("I should read README.md.")),
+                    "OpenCode dropped reasoning from tool history"
+                );
+                "The file is available.</think>Done: 42.".to_owned()
+            } else {
+                anyhow::ensure!(
+                    request
+                        .tools
+                        .definitions
+                        .iter()
+                        .any(|tool| tool["function"]["name"] == "read"),
+                    "OpenCode read tool missing"
+                );
+                format!(
+                    "I should read README.md.</think><tool_call><function=read><parameter=filePath>{}</parameter></function></tool_call>",
+                    self.path
+                )
+            };
+            for c in text.chars() {
+                anyhow::ensure!(callback(&c.to_string()), "client cancelled");
+            }
+            self.completed.fetch_add(1, Ordering::Relaxed);
+            Ok(GenerationOutput {
+                text,
+                prompt_tokens: 12,
+                completion_tokens: 7,
+                finish_reason: "stop".into(),
+                prefill_seconds: 0.0,
+                decode_seconds: 0.01,
+            })
+        }
+    }
+    let project = tempfile::tempdir().unwrap();
+    // macOS /var aliases /private/var. Match OpenCode's canonical project cwd
+    // so this fixture's own README is correctly treated as an in-project read.
+    let project_path = project.path().canonicalize().unwrap();
+    let (sender, receiver) = mpsc::sync_channel(QUEUE_CAPACITY);
+    let started = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let completed = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+    let engine = CliReasoningEngine {
+        path: project_path
+            .join("README.md")
+            .to_string_lossy()
+            .into_owned(),
+        started: started.clone(),
+        completed: completed.clone(),
+    };
+    std::thread::spawn(move || worker(Box::new(engine), receiver));
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        axum::serve(
+            listener,
+            router(ServerState {
+                sender,
+                model: "Qwen3.8-27B-4bit".into(),
+                vocab_size: None,
+            }),
+        )
+        .await
+        .unwrap()
+    });
+    let run =
+        std::process::Command::new(std::env::var("NODE_BINARY").unwrap_or_else(|_| "node".into()))
+            .arg(concat!(
+                env!("CARGO_MANIFEST_DIR"),
+                "/tests/opencode_reasoning_contract.cjs"
+            ))
+            .env("OPENCODE_TEST_PROJECT", &project_path)
+            .env("BASE_URL", format!("http://{address}/v1"))
+            .output()
+            .unwrap();
+    server.abort();
+    assert!(
+        run.status.success(),
+        "fixture started={} completed={}\nstdout: {}\nstderr: {}",
+        started.load(Ordering::Relaxed),
+        completed.load(Ordering::Relaxed),
         String::from_utf8_lossy(&run.stdout),
         String::from_utf8_lossy(&run.stderr)
     );

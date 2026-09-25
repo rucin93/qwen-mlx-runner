@@ -110,6 +110,42 @@ Optional message `name` must contain 1–64 ASCII letters, digits, `_` or `-`.
 `reasoning_content` is accepted only on assistant history and is passed through
 the checkpoint's history adapter.
 
+## Reasoning in OpenCode
+
+The example configuration enables reasoning by default from **0.7.2**. Its
+model entry advertises `reasoning:true`, sets `options.reasoningEffort:"medium"`,
+and uses `interleaved:{"field":"reasoning_content"}` to preserve reasoning in
+assistant history, including tool continuations. The compatible adapter sends
+the request option as `reasoning_effort` and converts `delta.reasoning_content`
+into separate reasoning events. Ordinary answer text remains `delta.content`.
+
+The model entry defines explicit `none`, `low`, `medium`, and `xhigh` variants,
+because the inspected OpenCode versions do not automatically build reasoning
+variants for Qwen names. For example:
+
+```sh
+opencode run --thinking 'Explain this function.'
+opencode run --variant low --thinking 'Explain this function.'
+opencode run --variant none 'Explain this function.'
+```
+
+`--thinking` controls display, not inference: `reasoningEffort` enables reasoning.
+The TUI `/thinking` command toggles expanded/collapsed reasoning. Display
+preferences remain under client control. The server's HTTP default is still
+thinking off for requests that supply neither effort nor `enable_thinking`.
+Reasoning consumes generation time and the shared output/context budget.
+
+For same-model tool turns, OpenCode moves reasoning into assistant message
+metadata and the adapter serializes it as `reasoning_content`; the server
+passes it to the checkpoint template. Switching to another provider/model has
+different history semantics in OpenCode and is outside this same-model test.
+
+Primary references for installed OpenCode 1.15.12:
+[model schema](https://github.com/anomalyco/opencode/blob/58a27b95c155d3f7d9b9f25b30eb1233bfb0eae5/packages/opencode/src/config/provider.ts#L5-L70),
+[reasoning history normalization](https://github.com/anomalyco/opencode/blob/58a27b95c155d3f7d9b9f25b30eb1233bfb0eae5/packages/opencode/src/provider/transform.ts#L308-L339),
+[Qwen variant handling](https://github.com/anomalyco/opencode/blob/58a27b95c155d3f7d9b9f25b30eb1233bfb0eae5/packages/opencode/src/provider/transform.ts#L632-L650),
+[CLI reasoning events](https://github.com/anomalyco/opencode/blob/58a27b95c155d3f7d9b9f25b30eb1233bfb0eae5/packages/opencode/src/cli/cmd/run.ts#L618-L710).
+
 ## Function calls and client execution
 
 **OpenCode executes tools.** The server supplies tool definitions to the model,
@@ -212,7 +248,10 @@ to the script; no trained model or GPU execution is needed for this HTTP fixture
 
 The assertions cover two system messages, multipart user text, actual SDK
 request serialization, streamed tool-call lifecycle and usage, matching call-ID
-history, and a non-streaming follow-up. The fixture emits a `read_file` call for
+history, and non-streaming follow-ups. Five HTTP requests cover ordinary output,
+reasoning before a tool call, and preserved reasoning in both native SDK parts
+and explicit OpenCode-shaped message metadata. This SDK test does not itself
+execute OpenCode's history transform. The fixture emits a `read_file` call for
 `README.md`, receives an in-memory result, and answers `Done.`. No file tool is
 executed. Fixed token counts of 12 input and 7 output tokens verify usage
 transport; they are not model measurements.
@@ -223,6 +262,41 @@ real checkpoint and its unchanged chat template. The pinned adapter's
 [message converter](https://github.com/vercel/ai/blob/%40ai-sdk%2Fopenai-compatible%402.0.41/packages/openai-compatible/src/chat/convert-to-openai-compatible-chat-messages.ts)
 and [stream parser](https://github.com/vercel/ai/blob/%40ai-sdk%2Fopenai-compatible%402.0.41/packages/openai-compatible/src/chat/openai-compatible-chat-language-model.ts)
 are the client-side contract references.
+
+## Reproduce the installed OpenCode reasoning test
+
+With Node.js and OpenCode on `PATH`, run:
+
+```sh
+cargo test --locked --lib server::tests::opencode_cli_reasoning_and_tool_history \
+  -- --ignored --exact --nocapture --test-threads=1
+```
+
+`NODE_BINARY` and `OPENCODE_BINARY` can supply absolute executable paths.
+The test starts the real HTTP router with deterministic generated text. The
+[CLI harness](../tests/opencode_reasoning_contract.cjs) uses the example config,
+an isolated temporary project and XDG data directories, and a custom session
+title. It disables external plugins and automatic updates, restricts provider
+selection to the loopback fixture, and allows only a read of its project files.
+OpenCode reads the fixture README, sends its result and prior reasoning back,
+and receives a second reasoning part plus `Done: 42.` as separate answer text.
+The Rust fixture verifies the incoming effort and exact reasoning history.
+
+The harness checks live reasoning/tool events and independently exports the
+saved session to verify both completed reasoning parts, tool output, final
+answer, and completion status. Installed OpenCode **1.15.12** exhibited an
+NDJSON event-drain race: it exited before printing the final reasoning/text
+events even though its session contained the complete result. The report
+records `final_cli_events_complete:false` for that case. This is not a claim
+that every final CLI event was displayed, or a visual TUI test. No artificial
+generation delays are used to conceal it. The inspected CLI starts its event
+consumer without awaiting it before returning and disposing the instance:
+[CLI lifecycle](https://github.com/anomalyco/opencode/blob/58a27b95c155d3f7d9b9f25b30eb1233bfb0eae5/packages/opencode/src/cli/cmd/run.ts#L768-L803),
+[instance disposal](https://github.com/anomalyco/opencode/blob/58a27b95c155d3f7d9b9f25b30eb1233bfb0eae5/packages/opencode/src/cli/effect-cmd.ts#L84-L92).
+
+This test verifies actual client reasoning reception, same-model history
+preservation, tool execution and persistence. It uses deterministic fixture
+output, so it does not measure the trained 27B model's reasoning quality.
 
 ## Recorded validation: 0.7.0
 
@@ -252,3 +326,20 @@ is a trained-27B agent evaluation or a new M5 throughput result.
   `opencode debug config --pure` with isolated XDG configuration/state paths.
   The resolved context/input/output limits were all 8192 and the compaction
   reserve was 1024. This is configuration validation, not a trained-model run.
+
+## Recorded validation: 0.7.2
+
+- **136 non-GPU tests** passed; the two external-client tests run separately.
+- The exact compatible SDK passed all five HTTP requests, including streamed
+  reasoning, non-streaming reasoning, and both history representations.
+- Installed **OpenCode 1.15.12** completed the isolated read-tool conversation.
+  Its saved session contained `I should read README.md.` and
+  `The file is available.` as reasoning, and `Done: 42.` as separate answer text.
+  The server verified the prior reasoning arrived in the tool-result turn.
+- The CLI emitted the first reasoning/tool events but omitted the final NDJSON
+  tail; the report recorded `final_cli_events_complete:false`. Complete session
+  assertions used OpenCode's export, as described above.
+
+The engine's existing reasoning wire format required no change. This update
+corrects client configuration and adds integration coverage; it does not
+establish trained-model reasoning quality or a new performance result.

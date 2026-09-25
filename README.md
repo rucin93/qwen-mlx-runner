@@ -213,6 +213,13 @@ provider/model settings into your existing config. Then run `opencode` in that
 project. The config uses `@ai-sdk/openai-compatible`, the local `/v1` endpoint,
 and this model for both main and small-model tasks. No API key is needed.
 
+From 0.7.2 the example enables reasoning at `medium` effort and preserves it
+through tool-call history with `interleaved.field: "reasoning_content"`.
+Explicit variants `none`, `low`, `medium`, and `xhigh` let you change the effort.
+In the OpenCode TUI, `/thinking` toggles the reasoning display; in the CLI use
+`opencode run --thinking 'your prompt'`. This display flag does not itself enable
+model reasoning. Copy or merge the updated example if you already have a config.
+
 The example sets `limit.context`, `limit.input` and `limit.output` to 8192;
 keep all three equal to the server's `--context` when changing it. The server
 reduces each requested output budget to the space the actual prompt leaves.
@@ -363,15 +370,16 @@ QWEN_METAL_NORM=parallel QWEN_METAL_METADATA=bf16 \
 
 ```sh
 cargo test --locked
-cargo test --locked -- --ignored --test-threads=1 --skip opencode_sdk_tool_round_trip
+cargo test --locked -- --ignored --test-threads=1 --skip opencode_sdk_tool_round_trip --skip opencode_cli_reasoning_and_tool_history
 cargo fmt --all -- --check
 ```
 
 The second command explicitly runs tests requiring a real Metal GPU. They fail
 if no device is available; they do not silently succeed. The first command lists
 them as ignored so file-format/API tests can also run in GPU-restricted sandboxes.
-The separate ignored OpenCode SDK test requires Node.js and an isolated install
-of its exact adapter version; see [the test commands](docs/openai-compatibility.md).
+The separate ignored OpenCode tests require Node.js and either an isolated install
+of the exact SDK version or an installed OpenCode CLI; see
+[the test commands](docs/openai-compatibility.md).
 
 `tests/fixtures/tiny` and `tiny-q4` are small, untrained synthetic models,
 not Qwen weights. Regenerate them and their independent scalar reference logits with:

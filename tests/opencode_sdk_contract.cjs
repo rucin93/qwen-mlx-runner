@@ -7,6 +7,7 @@
 // MODEL_ID=test-model node tests/opencode_sdk_contract.cjs
 // The fixture emits a read_file(path="README.md") call, then "Done." after a
 // matching tool-result message; each response reports 12 input / 7 output tokens.
+// With reasoningEffort="medium", it also emits the two reasoning strings below.
 // No tools are executed: the tool result below is an in-memory fixture string.
 // Package 2.0.41 implements LanguageModelV3, despite its package major version.
 
@@ -17,6 +18,9 @@ const { createRequire } = require('node:module');
 const SDK_NAME = '@ai-sdk/openai-compatible';
 const SDK_VERSION = '2.0.41';
 const XML_MARKER = /<\/?(?:tool_call|function|parameter)\b/i;
+const THINK_MARKER = /<\/?think\s*>/i;
+const TOOL_REASONING = 'I should read README.md.';
+const FOLLOWUP_REASONING = 'The file is available.';
 
 function requiredEnvironment(name) {
   const value = process.env[name];
@@ -29,6 +33,21 @@ function assertUsage(usage, label) {
   assert.equal(usage?.outputTokens?.total, 7, `${label}: output-token usage`);
   assert.equal(usage?.raw?.prompt_tokens, 12, `${label}: raw prompt usage`);
   assert.equal(usage?.raw?.completion_tokens, 7, `${label}: raw completion usage`);
+}
+
+async function collectStream(stream) {
+  const reader = stream.getReader();
+  const events = [];
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) return events;
+      assert.notEqual(value.type, 'error', `SDK stream error: ${String(value.error?.stack || value.error)}`);
+      events.push(value);
+    }
+  } finally {
+    reader.releaseLock();
+  }
 }
 
 async function main() {
@@ -111,18 +130,7 @@ async function main() {
       abortSignal: controller.signal,
     };
     const streamed = await model.doStream(options);
-    const reader = streamed.stream.getReader();
-    const events = [];
-    try {
-      while (true) {
-        const { value, done } = await reader.read();
-        if (done) break;
-        assert.notEqual(value.type, 'error', `SDK stream error: ${String(value.error?.stack || value.error)}`);
-        events.push(value);
-      }
-    } finally {
-      reader.releaseLock();
-    }
+    const events = await collectStream(streamed.stream);
 
     assert.equal(requests.length, 1, 'first operation should issue one HTTP request');
     const firstRequest = requests[0];
@@ -211,10 +219,130 @@ async function main() {
     assert.deepEqual(followup.finishReason, { unified: 'stop', raw: 'stop' });
     assertUsage(followup.usage, 'follow-up');
 
+    // The request namespace follows the provider name. The SDK maps the known
+    // camelCase option to the server's reasoning_effort wire field.
+    const thinkingOptions = {
+      ...options,
+      providerOptions: { 'qwen-metal': { reasoningEffort: 'medium' } },
+    };
+    const thinkingStream = await model.doStream(thinkingOptions);
+    const thinkingEvents = await collectStream(thinkingStream.stream);
+    assert.equal(requests.length, 3, 'thinking stream should issue one HTTP request');
+    assert.deepEqual(requests[2], { ...firstRequest, reasoning_effort: 'medium' },
+      'provider reasoningEffort must become reasoning_effort without other request changes');
+    const reasoningEvents = thinkingEvents.filter(event => event.type.startsWith('reasoning-'));
+    assert.equal(reasoningEvents[0]?.type, 'reasoning-start');
+    assert.equal(reasoningEvents.at(-1)?.type, 'reasoning-end');
+    assert.equal(reasoningEvents.filter(event => event.type === 'reasoning-start').length, 1);
+    assert.equal(reasoningEvents.filter(event => event.type === 'reasoning-end').length, 1);
+    for (const event of reasoningEvents) {
+      assert.equal(event.id, reasoningEvents[0].id, 'reasoning stream ID must remain stable');
+    }
+    const reasoningText = reasoningEvents.filter(event => event.type === 'reasoning-delta')
+      .map(event => event.delta).join('');
+    assert.equal(reasoningText, TOOL_REASONING, 'reasoning must remain separate from tool-call content');
+    assert.equal(thinkingEvents.filter(event => event.type === 'text-delta')
+      .map(event => event.delta).join(''), '', 'thinking tool call must not leak reasoning into assistant text');
+    const reasoningEnd = thinkingEvents.findIndex(event => event.type === 'reasoning-end');
+    const thinkingToolStart = thinkingEvents.findIndex(event => event.type === 'tool-input-start');
+    assert.ok(reasoningEnd >= 0 && reasoningEnd < thinkingToolStart,
+      'SDK must close reasoning before opening tool input');
+    const thinkingCalls = thinkingEvents.filter(event => event.type === 'tool-call');
+    assert.equal(thinkingCalls.length, 1, 'thinking stream must finish one tool call');
+    const thinkingCall = thinkingCalls[0];
+    assert.equal(thinkingCall.toolName, 'read_file');
+    assert.equal(typeof thinkingCall.toolCallId, 'string');
+    assert.ok(thinkingCall.toolCallId.length > 0);
+    assert.equal(typeof thinkingCall.input, 'string');
+    const thinkingArguments = JSON.parse(thinkingCall.input);
+    assert.deepEqual(thinkingArguments, { path: 'README.md' });
+    assert.equal(thinkingEvents.filter(event => event.type === 'tool-input-start').length, 1);
+    assert.equal(thinkingEvents.filter(event => event.type === 'tool-input-end').length, 1);
+    for (const event of thinkingEvents.filter(event => event.type.startsWith('tool-input-'))) {
+      assert.equal(event.id, thinkingCall.toolCallId, `unstable thinking call ID in ${event.type}`);
+    }
+    assert.equal(thinkingEvents.filter(event => event.type === 'tool-input-delta')
+      .map(event => event.delta).join(''), thinkingCall.input);
+    const thinkingFinishes = thinkingEvents.filter(event => event.type === 'finish');
+    assert.equal(thinkingFinishes.length, 1);
+    assert.deepEqual(thinkingFinishes[0].finishReason, { unified: 'tool-calls', raw: 'tool_calls' });
+    assertUsage(thinkingFinishes[0].usage, 'thinking stream');
+
+    const thinkingToolPart = {
+      type: 'tool-call',
+      toolCallId: thinkingCall.toolCallId,
+      toolName: thinkingCall.toolName,
+      input: thinkingArguments,
+    };
+    const thinkingToolResult = {
+      role: 'tool',
+      content: [{
+        type: 'tool-result',
+        toolCallId: thinkingCall.toolCallId,
+        toolName: thinkingCall.toolName,
+        output: { type: 'text', value: fakeToolResult },
+      }],
+    };
+    const historyCases = [
+      {
+        name: 'native-sdk-reasoning-part',
+        message: { role: 'assistant', content: [{ type: 'reasoning', text: reasoningText }, thinkingToolPart] },
+      },
+      {
+        name: 'opencode-shaped-message-metadata',
+        // This explicitly supplies the shape produced by OpenCode's interleaved
+        // reasoning_content transform. The SDK contract does not run OpenCode.
+        // Message metadata uses openaiCompatible, not the request namespace.
+        message: {
+          role: 'assistant',
+          content: [thinkingToolPart],
+          providerOptions: { openaiCompatible: { reasoning_content: reasoningText } },
+        },
+      },
+    ];
+    const reasoningFollowups = [];
+    for (const historyCase of historyCases) {
+      const result = await model.doGenerate({
+        ...thinkingOptions,
+        prompt: [...prompt, historyCase.message, thinkingToolResult],
+      });
+      const request = requests.at(-1);
+      assert.deepEqual(request, {
+        ...secondRequest,
+        reasoning_effort: 'medium',
+        messages: [
+          ...firstRequest.messages,
+          {
+            role: 'assistant',
+            content: '',
+            reasoning_content: TOOL_REASONING,
+            tool_calls: [{
+              id: thinkingCall.toolCallId,
+              type: 'function',
+              function: { name: 'read_file', arguments: JSON.stringify(thinkingArguments) },
+            }],
+          },
+          { role: 'tool', tool_call_id: thinkingCall.toolCallId, content: fakeToolResult },
+        ],
+      }, `${historyCase.name}: reasoning and matching tool history must survive SDK serialization`);
+      // doGenerate places text before reasoning; assert types separately so the
+      // contract checks semantic separation without imposing streaming order.
+      assert.equal(result.content.length, 2, `${historyCase.name}: unexpected generated content`);
+      assert.deepEqual(result.content.filter(part => part.type === 'text'), [{ type: 'text', text: 'Done.' }]);
+      assert.deepEqual(result.content.filter(part => part.type === 'reasoning'),
+        [{ type: 'reasoning', text: FOLLOWUP_REASONING }]);
+      assert.deepEqual(result.finishReason, { unified: 'stop', raw: 'stop' });
+      assertUsage(result.usage, historyCase.name);
+      reasoningFollowups.push({ history_shape: historyCase.name, content: result.content,
+        finish: result.finishReason, usage: result.usage });
+    }
+    assert.equal(requests.length, 5, 'all scenarios should issue exactly five HTTP requests');
+
     const wireBodies = await Promise.all(responseBodies);
-    assert.equal(wireBodies.length, 2);
+    assert.equal(wireBodies.length, 5);
     for (const [index, body] of wireBodies.entries()) {
       assert.doesNotMatch(body, XML_MARKER, `raw model tool markup leaked into HTTP response ${index + 1}`);
+      assert.doesNotMatch(body, THINK_MARKER, `raw thinking delimiter leaked into HTTP response ${index + 1}`);
     }
     console.log(JSON.stringify({
       kind: 'opencode_sdk_http_contract',
@@ -233,7 +361,14 @@ async function main() {
       stream_usage: finishes[0].usage,
       followup_usage: followup.usage,
       followup_text: 'Done.',
+      reasoning_stream_event_types: thinkingEvents.map(event => event.type),
+      reasoning_stream_text: reasoningText,
+      reasoning_stream_finish: thinkingFinishes[0].finishReason,
+      reasoning_stream_usage: thinkingFinishes[0].usage,
+      reasoning_history_followups: reasoningFollowups,
+      opencode_transform_executed: false,
       raw_tool_markup_leaked: false,
+      raw_thinking_markup_leaked: false,
       tools_executed: 0,
     }, null, 2));
   } finally {
