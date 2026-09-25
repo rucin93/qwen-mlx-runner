@@ -107,7 +107,7 @@ async function main() {
       prompt,
       tools,
       toolChoice: { type: 'auto' },
-      maxOutputTokens: 2048,
+      maxOutputTokens: 8192,
       abortSignal: controller.signal,
     };
     const streamed = await model.doStream(options);
@@ -127,7 +127,7 @@ async function main() {
     assert.equal(requests.length, 1, 'first operation should issue one HTTP request');
     const firstRequest = requests[0];
     assert.equal(firstRequest.model, modelId);
-    assert.equal(firstRequest.max_tokens, 2048);
+    assert.equal(firstRequest.max_tokens, 8192);
     assert.equal(firstRequest.stream, true);
     assert.deepEqual(firstRequest.stream_options, { include_usage: true });
     assert.equal(firstRequest.tool_choice, 'auto');
@@ -190,7 +190,7 @@ async function main() {
     assert.equal(requests.length, 2, 'follow-up should issue exactly one more HTTP request');
     const secondRequest = requests[1];
     assert.equal(secondRequest.model, modelId);
-    assert.equal(secondRequest.max_tokens, 2048);
+    assert.equal(secondRequest.max_tokens, 8192);
     assert.equal(secondRequest.stream, undefined, 'doGenerate must use non-streaming HTTP');
     assert.equal(secondRequest.stream_options, undefined);
     assert.equal(secondRequest.messages.length, 5);

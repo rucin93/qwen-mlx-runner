@@ -35,12 +35,29 @@ Check the exact model ID with `curl http://127.0.0.1:8080/v1/models`; it is the
 target directory's final component. Update the OpenCode model key if yours
 differs. This loopback server does not require an API key.
 
-Keep `limit.context` equal to the server's actual `--context`. The example sets
-`limit.output` to 2048, below the server's per-request cap of 4096. Prompt,
-template, tool definitions, history and requested output must fit the context.
-OpenCode's output-limit fallback can otherwise request 32,000 tokens, so do not
-omit the output limit. A larger value in client configuration does not enlarge
-the server's caches. [OpenCode output-limit calculation](https://github.com/anomalyco/opencode/blob/dev/packages/opencode/src/provider/transform.ts).
+Keep `limit.context`, `limit.input` and `limit.output` equal to the server's actual
+`--context`; the example sets all three to 8192. They describe the configured
+window. The server computes the actual output budget from the space left after
+tokenizing the prompt, including its template, tool definitions, instructions
+and history. Increasing client limits does not enlarge the server's caches.
+
+The example also sets top-level `compaction.reserved` to 1024. This is headroom
+for OpenCode's context management, **not a per-answer output cap**. With an
+explicit input limit, the inspected OpenCode implementation computes its usable
+threshold as `max(0, limit.input - reserved)`: 7168 for this example. Without an
+input limit it instead subtracts its output budget from `limit.context`, which
+would give zero with context/output both 8192. Setting the reserve alone does
+not change that second branch. Keep both `limit.input` and the reserve.
+[Pinned OpenCode compaction calculation](https://github.com/anomalyco/opencode/blob/fe3f3a41f79ad292cc3c7c629567385a20ec5130/packages/opencode/src/session/overflow.ts#L10-L33).
+
+OpenCode's output calculation falls back to 32,000 when its resolved output
+limit is zero or absent. Its configuration schema requires `output` whenever
+a `limit` object is supplied, so deleting only that field is not a supported
+way to remove a cap. Declaring the real window size and letting this server
+reduce the requested budget avoids the previous 2048-token example limit.
+[Pinned output calculation](https://github.com/anomalyco/opencode/blob/fe3f3a41f79ad292cc3c7c629567385a20ec5130/packages/opencode/src/provider/transform.ts#L1468-L1470),
+[pinned limit schema](https://github.com/anomalyco/opencode/blob/fe3f3a41f79ad292cc3c7c629567385a20ec5130/packages/core/src/v1/config/provider.ts#L47-L52),
+[pinned reserve schema](https://github.com/anomalyco/opencode/blob/fe3f3a41f79ad292cc3c7c629567385a20ec5130/packages/core/src/v1/config/config.ts#L149-L166).
 
 ## Accepted requests
 
@@ -52,7 +69,7 @@ HTTP request-body limit is 1 MiB.
 | --- | --- |
 | `model` | Must match the served model ID. |
 | `messages` | Text messages with roles `system`, `developer`, `user`, `assistant`, or `tool`; at least one user message is required. |
-| `max_tokens`, `max_completion_tokens` | Alternative output limits, integer 1–4096; default 256. Supply at most one non-null limit. |
+| `max_tokens`, `max_completion_tokens` | Alternative positive-integer upper bounds, with no fixed server cap. Omission/null uses the remaining context. An explicit value is reduced to `min(requested, remaining context)`. Supply at most one non-null limit. |
 | `temperature` | Number 0–2; default 1. Zero selects greedy sampling. |
 | `top_p` | Number greater than zero and at most 1; default 1. |
 | `top_k` | Local extension: nonnegative integer; default 0 disables top-k filtering. |
@@ -76,6 +93,14 @@ token's adjusted logit subtracts `frequency_penalty × count` and
 `presence_penalty`; negative penalties reward repetition. Logit bias applies
 before sampling, including the first completion token. These controls are
 also applied in MTP's verified sampling path.
+
+The HTTP budget behavior above starts in **0.7.1**. For example, if a fully
+rendered prompt occupies 1200 tokens of an 8192-token window, omission/null or
+`max_tokens:32000` permits up to 6992 generated tokens; `max_tokens:1000` permits
+up to 1000. Reasoning and tool-call syntax count toward that generated-token
+budget. EOS and configured stop sequences can finish earlier. A prompt that
+fills or exceeds the window is rejected because no output token would fit.
+The CLI and benchmark commands retain their existing explicit token controls.
 
 Message content may be a string or an array of `{"type":"text","text":"..."}`
 parts, concatenated in order. Images, audio, files and other content-part types
@@ -146,8 +171,10 @@ calls; `response_format:{"type":"json_schema",...}` is unsupported.
 
 Unsupported request fields/values normally return HTTP 400; an unknown model
 returns 404. Errors use `{"error":{"message":...,"type":...,"param":...,"code":...}}`.
-Context validation and tokenization happen before successful SSE headers, so
-context overflow is HTTP 400 with `code:"context_length_exceeded"`. Generation
+Context preparation and tokenization happen before successful SSE headers. A
+prompt with no room for output returns HTTP 400 with
+`code:"context_length_exceeded"`; an oversized positive output upper bound is
+reduced to the remaining space. Generation
 failures return HTTP 500 for non-streaming requests or an SSE error followed by
 `[DONE]` after streaming has started. A full/stopped worker queue returns 503.
 Request metadata is not stored in a database or echoed as a stored completion;
@@ -211,3 +238,17 @@ are the client-side contract references.
 The GPU evidence uses synthetic model/matrix fixtures on M1. The SDK evidence
 uses the real adapter and HTTP server with deterministic generated text. Neither
 is a trained-27B agent evaluation or a new M5 throughput result.
+
+## Recorded validation: 0.7.1
+
+- **136 non-GPU tests** and **45 distinct Metal tests** passed.
+- The real-engine HTTP regression uses a four-token prompt in a 520-token
+  synthetic context. Both ordinary and MTP generation produce 516 tokens for
+  omitted/null limits, 8192, and the largest unsigned 64-bit integer. An explicit
+  limit of 8 produces 8 tokens. A full prompt returns HTTP 400 before SSE starts.
+- The exact SDK round trip passed with `maxOutputTokens:8192`, exercising a
+  request above the old 4096-token cap.
+- Installed OpenCode **1.15.12** accepted the example through
+  `opencode debug config --pure` with isolated XDG configuration/state paths.
+  The resolved context/input/output limits were all 8192 and the compaction
+  reserve was 1024. This is configuration validation, not a trained-model run.

@@ -29,7 +29,6 @@ use request::{ParsedRequest, RequestError, ResponseFormat, StreamOptions};
 
 const QUEUE_CAPACITY: usize = 4;
 const EVENT_CAPACITY: usize = 16;
-const MAX_TOKENS: usize = 4096;
 static COMPLETION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone)]
@@ -118,7 +117,7 @@ fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
                 );
             }
         }
-        if let Err(error) = engine.validate_request(&job.request) {
+        if let Err(error) = engine.prepare_request(&mut job.request) {
             let code = if error
                 .downcast_ref::<crate::chat::ContextLengthExceeded>()
                 .is_some()

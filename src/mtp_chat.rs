@@ -411,10 +411,10 @@ impl TextGenerator for MtpChatEngine {
         Some(self.engine.config().vocab_size)
     }
 
-    fn validate_request(&self, request: &GenerationRequest) -> Result<()> {
+    fn prepare_request(&self, request: &mut GenerationRequest) -> Result<()> {
         request.sampling.validate(self.engine.config().vocab_size)?;
         self.tokenizer
-            .validate_request(request, self.engine.context_capacity())
+            .prepare_request(request, self.engine.context_capacity())
     }
 }
 
