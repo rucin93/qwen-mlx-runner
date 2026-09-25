@@ -1,0 +1,203 @@
+{
+  "captures": [
+    {
+      "attention_mode": "serial",
+      "gpu_interval": {
+        "maximum_milliseconds": 0.16437500016763806,
+        "mean_milliseconds": 0.09839583333814517,
+        "median_milliseconds": 0.09199999931297498,
+        "minimum_milliseconds": 0.08454166709270794,
+        "total_seconds": 0.004919791666907258
+      },
+      "head_dim": 256,
+      "heads": 24,
+      "history": 128,
+      "kv_heads": 4,
+      "max_absolute_difference_from_serial": null,
+      "measured_iterations": 50,
+      "wall_interval": {
+        "maximum_milliseconds": 0.8409580000000001,
+        "mean_milliseconds": 0.41836745999999997,
+        "median_milliseconds": 0.3883545,
+        "minimum_milliseconds": 0.30133299999999996,
+        "total_seconds": 0.020918373
+      },
+      "warmup_iterations": 5
+    },
+    {
+      "attention_mode": "parallel",
+      "gpu_interval": {
+        "maximum_milliseconds": 1.0708749996410916,
+        "mean_milliseconds": 0.07515583318308927,
+        "median_milliseconds": 0.037291666558303405,
+        "minimum_milliseconds": 0.017458332877140492,
+        "total_seconds": 0.0037577916591544636
+      },
+      "head_dim": 256,
+      "heads": 24,
+      "history": 128,
+      "kv_heads": 4,
+      "max_absolute_difference_from_serial": 1.043081283569336e-07,
+      "measured_iterations": 50,
+      "wall_interval": {
+        "maximum_milliseconds": 1.313958,
+        "mean_milliseconds": 0.3653324199999999,
+        "median_milliseconds": 0.325125,
+        "minimum_milliseconds": 0.23691700000000002,
+        "total_seconds": 0.018266620999999993
+      },
+      "warmup_iterations": 5
+    },
+    {
+      "attention_mode": "serial",
+      "gpu_interval": {
+        "maximum_milliseconds": 0.1830000001064036,
+        "mean_milliseconds": 0.13200166664319113,
+        "median_milliseconds": 0.12916666673845612,
+        "minimum_milliseconds": 0.11499999891384505,
+        "total_seconds": 0.0066000833321595564
+      },
+      "head_dim": 256,
+      "heads": 24,
+      "history": 515,
+      "kv_heads": 4,
+      "max_absolute_difference_from_serial": null,
+      "measured_iterations": 50,
+      "wall_interval": {
+        "maximum_milliseconds": 0.783875,
+        "mean_milliseconds": 0.40226825999999993,
+        "median_milliseconds": 0.3740005,
+        "minimum_milliseconds": 0.301,
+        "total_seconds": 0.020113412999999997
+      },
+      "warmup_iterations": 5
+    },
+    {
+      "attention_mode": "parallel",
+      "gpu_interval": {
+        "maximum_milliseconds": 0.09137500092037953,
+        "mean_milliseconds": 0.05967833334580064,
+        "median_milliseconds": 0.05633333330479218,
+        "minimum_milliseconds": 0.04587500006891787,
+        "total_seconds": 0.002983916667290032
+      },
+      "head_dim": 256,
+      "heads": 24,
+      "history": 515,
+      "kv_heads": 4,
+      "max_absolute_difference_from_serial": 1.2665987014770508e-07,
+      "measured_iterations": 50,
+      "wall_interval": {
+        "maximum_milliseconds": 0.5591250000000001,
+        "mean_milliseconds": 0.36267332,
+        "median_milliseconds": 0.33222850000000004,
+        "minimum_milliseconds": 0.267583,
+        "total_seconds": 0.018133666000000003
+      },
+      "warmup_iterations": 5
+    },
+    {
+      "attention_mode": "serial",
+      "gpu_interval": {
+        "maximum_milliseconds": 4.972958333382849,
+        "mean_milliseconds": 1.223304999875836,
+        "median_milliseconds": 0.8851874999891152,
+        "minimum_milliseconds": 0.5765833338955417,
+        "total_seconds": 0.061165249993791804
+      },
+      "head_dim": 256,
+      "heads": 24,
+      "history": 2048,
+      "kv_heads": 4,
+      "max_absolute_difference_from_serial": null,
+      "measured_iterations": 50,
+      "wall_interval": {
+        "maximum_milliseconds": 5.571124999999999,
+        "mean_milliseconds": 1.67496248,
+        "median_milliseconds": 1.3534585,
+        "minimum_milliseconds": 0.89325,
+        "total_seconds": 0.08374812400000001
+      },
+      "warmup_iterations": 5
+    },
+    {
+      "attention_mode": "parallel",
+      "gpu_interval": {
+        "maximum_milliseconds": 1.1056249986722833,
+        "mean_milliseconds": 0.5312833334755851,
+        "median_milliseconds": 0.4394374991534278,
+        "minimum_milliseconds": 0.23074999990058132,
+        "total_seconds": 0.026564166673779255
+      },
+      "head_dim": 256,
+      "heads": 24,
+      "history": 2048,
+      "kv_heads": 4,
+      "max_absolute_difference_from_serial": 3.5762786865234375e-07,
+      "measured_iterations": 50,
+      "wall_interval": {
+        "maximum_milliseconds": 1.688958,
+        "mean_milliseconds": 0.9081133399999995,
+        "median_milliseconds": 0.7943125,
+        "minimum_milliseconds": 0.514833,
+        "total_seconds": 0.04540566699999998
+      },
+      "warmup_iterations": 5
+    },
+    {
+      "attention_mode": "serial",
+      "gpu_interval": {
+        "maximum_milliseconds": 9.157291668088874,
+        "mean_milliseconds": 4.734608333274082,
+        "median_milliseconds": 3.7033541666460223,
+        "minimum_milliseconds": 2.921749999586609,
+        "total_seconds": 0.04734608333274082
+      },
+      "head_dim": 256,
+      "heads": 24,
+      "history": 8192,
+      "kv_heads": 4,
+      "max_absolute_difference_from_serial": null,
+      "measured_iterations": 10,
+      "wall_interval": {
+        "maximum_milliseconds": 9.604083,
+        "mean_milliseconds": 5.2469292,
+        "median_milliseconds": 4.2398750000000005,
+        "minimum_milliseconds": 3.4425,
+        "total_seconds": 0.052469292
+      },
+      "warmup_iterations": 5
+    },
+    {
+      "attention_mode": "parallel",
+      "gpu_interval": {
+        "maximum_milliseconds": 2.695791665246361,
+        "mean_milliseconds": 2.0282124998630024,
+        "median_milliseconds": 1.9931458336941432,
+        "minimum_milliseconds": 1.6508333337696968,
+        "total_seconds": 0.020282124998630024
+      },
+      "head_dim": 256,
+      "heads": 24,
+      "history": 8192,
+      "kv_heads": 4,
+      "max_absolute_difference_from_serial": 2.812594175338745e-07,
+      "measured_iterations": 10,
+      "wall_interval": {
+        "maximum_milliseconds": 3.1632499999999997,
+        "mean_milliseconds": 2.5116539999999996,
+        "median_milliseconds": 2.5347085,
+        "minimum_milliseconds": 2.099083,
+        "total_seconds": 0.025116539999999996
+      },
+      "warmup_iterations": 5
+    }
+  ],
+  "device": "Apple M1",
+  "engine_version": "0.4.0",
+  "kind": "attention_values_microbenchmark",
+  "logical_kernel": "attn_values",
+  "note": "One production attention-values dispatch per command buffer; reused inputs may benefit from cache. GPU interval and wall interval overlap and must not be added. This is NOT model tokens per second.",
+  "provenance": "Locally executed Apple M1 microbenchmark; not target M5 throughput. Each mode/history has 50 samples, or 10 at history 8192.",
+  "release_binary_sha256": "ce5a980b1a9e92481e92f2a6752b543c2b65710dea525df1738b265205579af8"
+}

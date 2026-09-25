@@ -425,6 +425,9 @@ impl Engine {
     pub fn norm_mode(&self) -> &str {
         self.gpu.norm_mode()
     }
+    pub fn attention_mode(&self) -> &str {
+        self.gpu.attention_mode()
+    }
     pub fn metadata_mode(&self) -> &str {
         self.gpu.metadata_mode()
     }
@@ -445,6 +448,9 @@ impl Engine {
     }
     pub fn set_parallel_norm(&mut self, enabled: bool) {
         self.gpu.set_parallel_norm(enabled);
+    }
+    pub fn set_parallel_attention(&mut self, enabled: bool) {
+        self.gpu.set_parallel_attention(enabled);
     }
     pub fn profile_report(&self) -> Result<Vec<ProfileRow>> {
         self.gpu.profile_report()

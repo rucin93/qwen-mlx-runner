@@ -30,6 +30,9 @@ to a three-run median of **8.16 tokens/s** with the aligned kernels. The request
 [v0.2 profiling and optimization notes](docs/performance-v0.2.md).
 The [v0.3 notes](docs/performance-v0.3.md) cover the M5 zero-counter fallback
 and optional lossless BF16 metadata storage.
+The [v0.4 follow-up](docs/performance-v0.4.md) records the successful M5 profile:
+parallel RMS reduced one normal step from 83.18 to 72.08 ms. These single-step
+measurements do not establish a new full-benchmark token rate.
 
 Implemented:
 
@@ -200,6 +203,21 @@ RMS normalization retains the original single-SIMD path by default.
 `QWEN_METAL_NORM=parallel` enables the new 256-thread reduction for large
 disjoint buffers. It remains opt-in until full target-model improvement is
 measured. Final JSON also reports `norm_mode`.
+
+`QWEN_METAL_ATTN_VALUES=parallel` enables an optional attention-value reduction
+that splits the history across eight SIMD groups. It retains FP32 cache and
+arithmetic and the original GQA mapping. It applies at history length 128 or
+greater and head dimension 32 or greater, with a serial fallback for smaller
+shapes or aliased output. The default and reference modes remain `serial`.
+Benchmark/profile JSON reports the requested `attention_mode`; eligible
+dispatches use the parallel kernel. This flag does not change attention-score
+computation or softmax. Run the standalone, reused-buffer microbenchmark with:
+
+```sh
+cargo run --release --locked --example attention_bench
+```
+
+Its GPU and wall intervals overlap, and neither is a model token-rate result.
 
 To locate costs on the actual model, run one diagnostic capture:
 

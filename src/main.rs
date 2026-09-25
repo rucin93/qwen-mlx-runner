@@ -178,6 +178,7 @@ fn main() -> Result<()> {
                     "kind":"gpu_operation_profile", "device":engine.device_name(),
                     "engine_version":env!("CARGO_PKG_VERSION"), "model_path":model,
                     "metadata_mode":engine.metadata_mode(),
+                    "attention_mode":engine.attention_mode(),
                     "compacted_matrices":engine.metadata_stats().0, "metadata_saved_bytes":engine.metadata_stats().1,
                     "context_capacity":context, "compare_norm":compare_norm,
                     "synthetic_reused_weights":model.is_none(),
@@ -215,7 +216,7 @@ fn main() -> Result<()> {
                 "device":engine.device_name(),"allocated_bytes":engine.allocated_bytes(),"load_seconds":load_seconds,
                 "context":context,"zero_history":history,"steps":steps,"seconds":seconds,"milliseconds_per_step":seconds*1000./steps as f64,
                 "reference":std::env::var("QWEN_METAL_REFERENCE").is_ok_and(|v|v=="1"),
-                "kernel_mode":engine.kernel_mode(), "norm_mode":engine.norm_mode(),
+                "kernel_mode":engine.kernel_mode(), "norm_mode":engine.norm_mode(), "attention_mode":engine.attention_mode(),
                 "note":"NOT REAL QWEN THROUGHPUT. Shares immutable weights across 64 layers; zero historical KV, one warmup step; lower residency than real checkpoint."})
                 )?
             );
@@ -359,6 +360,7 @@ fn main() -> Result<()> {
                 "{}",
                 serde_json::to_string_pretty(&json!({"kind":"model_fixed_token_benchmark",
                 "engine_version":env!("CARGO_PKG_VERSION"),"model_path":model,"device":engine.device_name(),"kernel_mode":engine.kernel_mode(),"norm_mode":engine.norm_mode(),
+                "attention_mode":engine.attention_mode(),
                 "metadata_mode":engine.metadata_mode(),"compacted_matrices":engine.metadata_stats().0,"metadata_saved_bytes":engine.metadata_stats().1,
                 "allocated_bytes":engine.allocated_bytes(),"context_capacity":context,"prompt_tokens":prompt_tokens,
                 "generated_steps":generate_tokens,"load_seconds":load_seconds,"median_decode_tokens_per_second":median,
@@ -513,6 +515,7 @@ fn profile_step(engine: &mut Engine, backend: ProfileBackend) -> Result<serde_js
     let rows = report.ok();
     Ok(json!({
         "kernel_mode":engine.kernel_mode(), "norm_mode":engine.norm_mode(),
+        "attention_mode":engine.attention_mode(),
         "profile_backend":engine.profile_backend(), "counter_error":counter_error, "profile_error":profile_error,
         "profile_execution_failed":execution_failed,
         "normal_step_history":normal_history, "profiled_step_history":profile_history,

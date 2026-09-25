@@ -1,0 +1,807 @@
+{
+  "captures": [
+    {
+      "counter_error": null,
+      "kernel_mode": "aligned",
+      "norm_mode": "serial",
+      "normal_step_history": 513,
+      "normal_timing": {
+        "completion_wait_seconds": 0.082514292,
+        "cpu_commit_seconds": 5.541e-06,
+        "cpu_encode_seconds": 0.000620875,
+        "gpu_seconds": 0.08209724997868761
+      },
+      "normal_timing_error": null,
+      "normal_wall_seconds": 0.083177459,
+      "operations": [
+        {
+          "dispatches": 128,
+          "gpu_nanoseconds": 36524792,
+          "gpu_seconds": 0.03652479179436341,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 399.1250123362988,
+          "mean_gpu_microseconds": 285.34993589346414,
+          "parameters": [
+            17408,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 64,
+          "gpu_nanoseconds": 15755625,
+          "gpu_seconds": 0.0157556249469053,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 332.1249969303608,
+          "mean_gpu_microseconds": 246.1816397953953,
+          "parameters": [
+            5120,
+            17408,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 129,
+          "gpu_nanoseconds": 14567958,
+          "gpu_seconds": 0.014567958045518026,
+          "kernel": "rms_norm",
+          "max_gpu_microseconds": 130.5833284277469,
+          "mean_gpu_microseconds": 112.9299073295971,
+          "parameters": [
+            5120,
+            897988541
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 64,
+          "gpu_nanoseconds": 7950875,
+          "gpu_seconds": 0.007950874976813793,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 192.5000105984509,
+          "mean_gpu_microseconds": 124.23242151271552,
+          "parameters": [
+            5120,
+            6144,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 48,
+          "gpu_nanoseconds": 7293958,
+          "gpu_seconds": 0.007293958333320916,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 285.08331160992384,
+          "mean_gpu_microseconds": 151.95746527751908,
+          "parameters": [
+            10240,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 48,
+          "gpu_nanoseconds": 4331417,
+          "gpu_seconds": 0.004331416654167697,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 114.45832205936313,
+          "mean_gpu_microseconds": 90.23784696182702,
+          "parameters": [
+            6144,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 2979375,
+          "gpu_seconds": 0.002979374985443428,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 337.79165823943913,
+          "mean_gpu_microseconds": 186.21093659021426,
+          "parameters": [
+            12288,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 2946417,
+          "gpu_seconds": 0.002946416730992496,
+          "kernel": "attn_values",
+          "max_gpu_microseconds": 205.20834368653595,
+          "mean_gpu_microseconds": 184.151045687031,
+          "parameters": [
+            24,
+            4,
+            256,
+            515
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 1,
+          "gpu_nanoseconds": 2786875,
+          "gpu_seconds": 0.0027868750039488077,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 2786.8750039488077,
+          "mean_gpu_microseconds": 2786.8750039488077,
+          "parameters": [
+            248320,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 48,
+          "gpu_nanoseconds": 1304083,
+          "gpu_seconds": 0.001304083300055936,
+          "kernel": "delta_step",
+          "max_gpu_microseconds": 38.583355490118265,
+          "mean_gpu_microseconds": 27.168402084498666,
+          "parameters": [
+            16,
+            48,
+            128,
+            128
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 96,
+          "gpu_nanoseconds": 1121833,
+          "gpu_seconds": 0.001121833425713703,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 18.12499249354005,
+          "mean_gpu_microseconds": 11.685764851184407,
+          "parameters": [
+            48,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 32,
+          "gpu_nanoseconds": 641500,
+          "gpu_seconds": 0.0006414999370463192,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 23.9583314396441,
+          "mean_gpu_microseconds": 20.046873032697476,
+          "parameters": [
+            1024,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 502375,
+          "gpu_seconds": 0.000502375012729317,
+          "kernel": "attn_scores",
+          "max_gpu_microseconds": 36.12501313909888,
+          "mean_gpu_microseconds": 31.39843829558231,
+          "parameters": [
+            24,
+            4,
+            256,
+            515
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 128,
+          "gpu_nanoseconds": 448250,
+          "gpu_seconds": 0.00044825003715232015,
+          "kernel": "add",
+          "max_gpu_microseconds": 34.4999716617167,
+          "mean_gpu_microseconds": 3.501953415252501,
+          "parameters": [
+            5120
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 48,
+          "gpu_nanoseconds": 280459,
+          "gpu_seconds": 0.00028045856743119657,
+          "kernel": "gated_rms",
+          "max_gpu_microseconds": 7.624999852851033,
+          "mean_gpu_microseconds": 5.842886821483262,
+          "parameters": [
+            48,
+            128,
+            897988541
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 64,
+          "gpu_nanoseconds": 277958,
+          "gpu_seconds": 0.0002779584319796413,
+          "kernel": "swiglu",
+          "max_gpu_microseconds": 40.79166683368385,
+          "mean_gpu_microseconds": 4.343100499681896,
+          "parameters": [
+            17408
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 48,
+          "gpu_nanoseconds": 253000,
+          "gpu_seconds": 0.00025300003471784294,
+          "kernel": "conv_silu",
+          "max_gpu_microseconds": 11.124997399747372,
+          "mean_gpu_microseconds": 5.2708340566217275,
+          "parameters": [
+            10240,
+            4
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 48,
+          "gpu_nanoseconds": 225875,
+          "gpu_seconds": 0.0002258751483168453,
+          "kernel": "delta_norm",
+          "max_gpu_microseconds": 5.83333894610405,
+          "mean_gpu_microseconds": 4.705732256600943,
+          "parameters": [
+            16,
+            128,
+            897988541
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 164833,
+          "gpu_seconds": 0.00016483323997817934,
+          "kernel": "softmax",
+          "max_gpu_microseconds": 11.750002158805728,
+          "mean_gpu_microseconds": 10.302077498636208,
+          "parameters": [
+            24,
+            515
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 134625,
+          "gpu_seconds": 0.0001346249773632735,
+          "kernel": "head_rms",
+          "max_gpu_microseconds": 16.166683053597808,
+          "mean_gpu_microseconds": 8.414061085204594,
+          "parameters": [
+            4,
+            256,
+            897988541
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 131542,
+          "gpu_seconds": 0.0001315416011493653,
+          "kernel": "head_rms",
+          "max_gpu_microseconds": 10.87499549612403,
+          "mean_gpu_microseconds": 8.221350071835332,
+          "parameters": [
+            24,
+            256,
+            897988541
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 120000,
+          "gpu_seconds": 0.00012000001152046025,
+          "kernel": "rope",
+          "max_gpu_microseconds": 8.25000461190939,
+          "mean_gpu_microseconds": 7.5000007200287655,
+          "parameters": [
+            24,
+            256,
+            64,
+            514,
+            1259902592
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 102333,
+          "gpu_seconds": 0.00010233328794129193,
+          "kernel": "rope",
+          "max_gpu_microseconds": 7.124996045604348,
+          "mean_gpu_microseconds": 6.3958304963307455,
+          "parameters": [
+            4,
+            256,
+            64,
+            514,
+            1259902592
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 65208,
+          "gpu_seconds": 6.520832539536059e-05,
+          "kernel": "split_q_gate",
+          "max_gpu_microseconds": 5.0000089686363935,
+          "mean_gpu_microseconds": 4.075520337210037,
+          "parameters": [
+            24,
+            256
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 64042,
+          "gpu_seconds": 6.40416401438415e-05,
+          "kernel": "kv_append",
+          "max_gpu_microseconds": 8.500006515532732,
+          "mean_gpu_microseconds": 4.002602508990094,
+          "parameters": [
+            4,
+            256,
+            514
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 1,
+          "gpu_nanoseconds": 5750,
+          "gpu_seconds": 5.750014679506421e-06,
+          "kernel": "embed_affine",
+          "max_gpu_microseconds": 5.750014679506421,
+          "mean_gpu_microseconds": 5.750014679506421,
+          "parameters": [
+            3,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        }
+      ],
+      "profile_backend": "command_buffers",
+      "profile_error": null,
+      "profile_execution_failed": false,
+      "profiled_step_history": 514,
+      "profiled_timing": null,
+      "summed_kernel_seconds": 0.10098095846478827,
+      "wall_seconds": 0.341668625
+    },
+    {
+      "counter_error": null,
+      "kernel_mode": "aligned",
+      "norm_mode": "parallel",
+      "normal_step_history": 516,
+      "normal_timing": {
+        "completion_wait_seconds": 0.071458875,
+        "cpu_commit_seconds": 3.875e-06,
+        "cpu_encode_seconds": 0.000581792,
+        "gpu_seconds": 0.07081608331645839
+      },
+      "normal_timing_error": null,
+      "normal_wall_seconds": 0.072076166,
+      "operations": [
+        {
+          "dispatches": 128,
+          "gpu_nanoseconds": 39504667,
+          "gpu_seconds": 0.03950466666719876,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 742.8749813698232,
+          "mean_gpu_microseconds": 308.63020833749033,
+          "parameters": [
+            17408,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 64,
+          "gpu_nanoseconds": 16559292,
+          "gpu_seconds": 0.016559291660087183,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 567.0000100508332,
+          "mean_gpu_microseconds": 258.73893218886224,
+          "parameters": [
+            5120,
+            17408,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 64,
+          "gpu_nanoseconds": 9625833,
+          "gpu_seconds": 0.009625833394238725,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 466.58332576043904,
+          "mean_gpu_microseconds": 150.40364678498008,
+          "parameters": [
+            5120,
+            6144,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 48,
+          "gpu_nanoseconds": 7680833,
+          "gpu_seconds": 0.007680833339691162,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 440.7500091474503,
+          "mean_gpu_microseconds": 160.0173612435659,
+          "parameters": [
+            10240,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 48,
+          "gpu_nanoseconds": 4923292,
+          "gpu_seconds": 0.004923291737213731,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 493.4166499879211,
+          "mean_gpu_microseconds": 102.56857785861939,
+          "parameters": [
+            6144,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 3078625,
+          "gpu_seconds": 0.003078625042689964,
+          "kernel": "attn_values",
+          "max_gpu_microseconds": 209.37499357387424,
+          "mean_gpu_microseconds": 192.41406516812276,
+          "parameters": [
+            24,
+            4,
+            256,
+            518
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 1,
+          "gpu_nanoseconds": 3000250,
+          "gpu_seconds": 0.003000249998876825,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 3000.249998876825,
+          "mean_gpu_microseconds": 3000.249998876825,
+          "parameters": [
+            248320,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 2946292,
+          "gpu_seconds": 0.002946291642729193,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 347.37499663606286,
+          "mean_gpu_microseconds": 184.14322767057456,
+          "parameters": [
+            12288,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 48,
+          "gpu_nanoseconds": 2138875,
+          "gpu_seconds": 0.002138875046512112,
+          "kernel": "delta_step",
+          "max_gpu_microseconds": 452.9999860096723,
+          "mean_gpu_microseconds": 44.559896802335665,
+          "parameters": [
+            16,
+            48,
+            128,
+            128
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 96,
+          "gpu_nanoseconds": 1424917,
+          "gpu_seconds": 0.0014249166706576943,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 259.2916425783187,
+          "mean_gpu_microseconds": 14.84288198601765,
+          "parameters": [
+            48,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 129,
+          "gpu_nanoseconds": 1354542,
+          "gpu_seconds": 0.0013545416295528412,
+          "kernel": "rms_norm",
+          "max_gpu_microseconds": 347.66667522490025,
+          "mean_gpu_microseconds": 10.500322709711947,
+          "parameters": [
+            5120,
+            897988541
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 32,
+          "gpu_nanoseconds": 1157792,
+          "gpu_seconds": 0.001157791615696624,
+          "kernel": "matvec_affine",
+          "max_gpu_microseconds": 285.3750193025917,
+          "mean_gpu_microseconds": 36.1809879905195,
+          "parameters": [
+            1024,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 991125,
+          "gpu_seconds": 0.0009911249799188226,
+          "kernel": "attn_scores",
+          "max_gpu_microseconds": 501.2500041630119,
+          "mean_gpu_microseconds": 61.945311244926415,
+          "parameters": [
+            24,
+            4,
+            256,
+            518
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 128,
+          "gpu_nanoseconds": 983458,
+          "gpu_seconds": 0.0009834584488999099,
+          "kernel": "add",
+          "max_gpu_microseconds": 366.79167533293366,
+          "mean_gpu_microseconds": 7.683269132030546,
+          "parameters": [
+            5120
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 64,
+          "gpu_nanoseconds": 574375,
+          "gpu_seconds": 0.0005743749788962305,
+          "kernel": "swiglu",
+          "max_gpu_microseconds": 319.5416647940874,
+          "mean_gpu_microseconds": 8.974609045253601,
+          "parameters": [
+            17408
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 48,
+          "gpu_nanoseconds": 513417,
+          "gpu_seconds": 0.0005134167440701276,
+          "kernel": "gated_rms",
+          "max_gpu_microseconds": 225.499999942258,
+          "mean_gpu_microseconds": 10.696182168127658,
+          "parameters": [
+            48,
+            128,
+            897988541
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 48,
+          "gpu_nanoseconds": 329375,
+          "gpu_seconds": 0.0003293750050943345,
+          "kernel": "conv_silu",
+          "max_gpu_microseconds": 44.958345824852586,
+          "mean_gpu_microseconds": 6.861979272798635,
+          "parameters": [
+            10240,
+            4
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 48,
+          "gpu_nanoseconds": 248000,
+          "gpu_seconds": 0.0002479999966453761,
+          "kernel": "delta_norm",
+          "max_gpu_microseconds": 13.374985428526998,
+          "mean_gpu_microseconds": 5.1666665967786685,
+          "parameters": [
+            16,
+            128,
+            897988541
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 171083,
+          "gpu_seconds": 0.00017108331667259336,
+          "kernel": "softmax",
+          "max_gpu_microseconds": 11.958327377215028,
+          "mean_gpu_microseconds": 10.692707292037085,
+          "parameters": [
+            24,
+            518
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 131458,
+          "gpu_seconds": 0.0001314583350904286,
+          "kernel": "head_rms",
+          "max_gpu_microseconds": 9.000010322779417,
+          "mean_gpu_microseconds": 8.216145943151787,
+          "parameters": [
+            4,
+            256,
+            897988541
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 131417,
+          "gpu_seconds": 0.00013141665840521455,
+          "kernel": "head_rms",
+          "max_gpu_microseconds": 8.66665504872799,
+          "mean_gpu_microseconds": 8.21354115032591,
+          "parameters": [
+            24,
+            256,
+            897988541
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 128292,
+          "gpu_seconds": 0.0001282916055060923,
+          "kernel": "rope",
+          "max_gpu_microseconds": 10.374991688877344,
+          "mean_gpu_microseconds": 8.01822534413077,
+          "parameters": [
+            24,
+            256,
+            64,
+            517,
+            1259902592
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 116708,
+          "gpu_seconds": 0.00011670825188048184,
+          "kernel": "split_q_gate",
+          "max_gpu_microseconds": 49.62499951943755,
+          "mean_gpu_microseconds": 7.294265742530115,
+          "parameters": [
+            24,
+            256
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 108083,
+          "gpu_seconds": 0.00010808338993228972,
+          "kernel": "rope",
+          "max_gpu_microseconds": 7.374997949227691,
+          "mean_gpu_microseconds": 6.7552118707681075,
+          "parameters": [
+            4,
+            256,
+            64,
+            517,
+            1259902592
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 16,
+          "gpu_nanoseconds": 60250,
+          "gpu_seconds": 6.024996400810778e-05,
+          "kernel": "kv_append",
+          "max_gpu_microseconds": 4.0000013541430235,
+          "mean_gpu_microseconds": 3.7656227505067363,
+          "parameters": [
+            4,
+            256,
+            517
+          ],
+          "raw_gpu_ticks": null
+        },
+        {
+          "dispatches": 1,
+          "gpu_nanoseconds": 4792,
+          "gpu_seconds": 4.791683750227094e-06,
+          "kernel": "embed_affine",
+          "max_gpu_microseconds": 4.791683750227094,
+          "mean_gpu_microseconds": 4.791683750227094,
+          "parameters": [
+            3,
+            5120,
+            4,
+            64
+          ],
+          "raw_gpu_ticks": null
+        }
+      ],
+      "profile_backend": "command_buffers",
+      "profile_error": null,
+      "profile_execution_failed": false,
+      "profiled_step_history": 517,
+      "profiled_timing": null,
+      "summed_kernel_seconds": 0.09788704180391505,
+      "wall_seconds": 0.322773417
+    }
+  ],
+  "compacted_matrices": 0,
+  "compare_norm": true,
+  "context_capacity": 8192,
+  "device": "Apple M5 Pro",
+  "engine_version": "0.3.0",
+  "kind": "gpu_operation_profile",
+  "metadata_mode": "f32",
+  "metadata_saved_bytes": 0,
+  "model_path": "models/Qwen3.8-27B-4bit",
+  "note": "Diagnostic only: counters use one encoder per operation; commands use one synchronous command buffer per operation. Both change scheduling and are not normal model throughput. Without --model, reused synthetic weights and zeroed historical KV.",
+  "synthetic_reused_weights": false
+}

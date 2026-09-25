@@ -22,6 +22,7 @@ pub struct Gpu {
     reference_kernels: bool,
     matvec_variant: String,
     parallel_norm: bool,
+    parallel_attention: bool,
     bf16_metadata: bool,
     compacted_matrices: Cell<usize>,
     metadata_saved_bytes: Cell<u64>,
@@ -100,6 +101,7 @@ const KERNELS: &[&str] = &[
     "attn_scores",
     "softmax",
     "attn_values",
+    "attn_values_parallel",
     "matvec_q4_g32",
     "matvec_q4_g64",
     "matvec_q4_g128",
@@ -141,6 +143,12 @@ impl Gpu {
             matches!(norm_mode.as_str(), "parallel" | "serial"),
             "QWEN_METAL_NORM must be parallel or serial"
         );
+        let attention_mode =
+            std::env::var("QWEN_METAL_ATTN_VALUES").unwrap_or_else(|_| "serial".into());
+        ensure!(
+            matches!(attention_mode.as_str(), "parallel" | "serial"),
+            "QWEN_METAL_ATTN_VALUES must be parallel or serial"
+        );
         let metadata_mode = std::env::var("QWEN_METAL_METADATA").unwrap_or_else(|_| "f32".into());
         ensure!(
             matches!(metadata_mode.as_str(), "f32" | "bf16"),
@@ -165,6 +173,8 @@ impl Gpu {
                     include_str!("../kernels/qwen.metal"),
                     "\n",
                     include_str!("../kernels/norm_fast.metal"),
+                    "\n",
+                    include_str!("../kernels/attention_values.metal"),
                     "\n",
                     include_str!("../kernels/affine_bf16.metal")
                 ),
@@ -211,7 +221,7 @@ impl Gpu {
                     },
                 );
             }
-            if name == "rms_norm_parallel" {
+            if matches!(name, "rms_norm_parallel" | "attn_values_parallel") {
                 descriptor.set_max_total_threads_per_threadgroup(256);
             }
             let pipeline = device
@@ -231,6 +241,7 @@ impl Gpu {
             reference_kernels,
             matvec_variant: variant.into(),
             parallel_norm: norm_mode == "parallel",
+            parallel_attention: attention_mode == "parallel",
             bf16_metadata: metadata_mode == "bf16" && !reference_kernels,
             compacted_matrices: Cell::new(0),
             metadata_saved_bytes: Cell::new(0),
@@ -248,6 +259,13 @@ impl Gpu {
     }
     pub fn norm_mode(&self) -> &str {
         if self.parallel_norm && !self.reference_kernels {
+            "parallel"
+        } else {
+            "serial"
+        }
+    }
+    pub fn attention_mode(&self) -> &str {
+        if self.parallel_attention && !self.reference_kernels {
             "parallel"
         } else {
             "serial"
@@ -299,6 +317,9 @@ impl Gpu {
     }
     pub fn set_parallel_norm(&mut self, enabled: bool) {
         self.parallel_norm = enabled;
+    }
+    pub fn set_parallel_attention(&mut self, enabled: bool) {
+        self.parallel_attention = enabled;
     }
     pub fn last_frame_timing(&self) -> Option<FrameTiming> {
         self.frame_timing.get()
@@ -424,6 +445,15 @@ impl Gpu {
             && !std::ptr::eq(buffers[1], buffers[2])
         {
             Some("rms_norm_parallel")
+        } else if !self.reference_kernels
+            && self.parallel_attention
+            && name == "attn_values"
+            && params[2] >= 32
+            && params[3] >= 128
+            && buffers.len() == 4
+            && buffers[..3].iter().all(|b| !std::ptr::eq(*b, buffers[3]))
+        {
+            Some("attn_values_parallel")
         } else {
             None
         };
@@ -441,7 +471,10 @@ impl Gpu {
             threads == expected_threads,
             "{name}: expected {expected_threads} threads, got {threads}"
         );
-        let actual_group_size = if specialized == Some("rms_norm_parallel") {
+        let actual_group_size = if matches!(
+            specialized,
+            Some("rms_norm_parallel" | "attn_values_parallel")
+        ) {
             256
         } else if specialized.is_some_and(|n| {
             n.ends_with("_aligned") || n.ends_with("_aligned_bf16") || n.ends_with("_stream")
@@ -472,6 +505,8 @@ impl Gpu {
         );
         let actual_threads = if specialized == Some("rms_norm_parallel") {
             256
+        } else if specialized == Some("attn_values_parallel") {
+            params[0] as usize * (params[2] as usize).div_ceil(32) * 256
         } else if specialized.is_some() {
             (params[0] as usize).div_ceil(4) * 32
         } else {

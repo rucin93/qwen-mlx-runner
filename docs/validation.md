@@ -149,3 +149,43 @@ Independent read-only review found no remaining actionable correctness issue
 after the missing-timestamp and partial-state error paths were corrected.
 The command backend still needs confirmation on the user's M5 driver. BF16
 metadata remains opt-in, and no v0.3 full-model M5 speedup is claimed.
+
+## v0.4 attention follow-up validation
+
+The user subsequently provided a successful v0.3 M5 profile: both captures
+completed all 1,155 operations with valid normal GPU times and no profile
+errors. Its single normal steps support testing parallel RMS in the sustained
+benchmark; they do not establish a new sustained rate. Raw target evidence and
+analysis are in `docs/performance-v0.4.md`.
+
+The optional parallel attention-value kernel was checked on the local M1:
+
+```text
+cargo test --offline --locked -- --include-ignored
+  48 library tests and 10 integration tests passed (58 total)
+  0 failed, 0 ignored
+cargo build --release --offline --locked --bin qwen-metal --example attention_bench -j 2
+  passed
+```
+
+The independent FP64 attention test runs 51 cases across serial, parallel and
+reference modes (153 GPU dispatches). It covers GQA head mapping, short and
+odd dimensions/history lengths, threshold boundaries, 8,192-token histories,
+mixed signs, extreme gates, zero values, output sentinels and safe gate/output
+aliasing. The whole-engine test compares all 64 logits over 130 fixed tokens,
+crossing the parallel attention history threshold, then verifies reset/replay.
+It uses an isolated temporary copy of the synthetic Q4 fixture, changing only
+the allowed position count; committed fixture bytes remain unchanged.
+
+The release microbenchmark compares the same production logical dispatch and
+input buffers in both modes, with five unreported warmups per case. It measures
+actual GPU and wall intervals separately and compares final outputs. Its local
+results and limits are retained in `docs/benchmarks/m1-v0.4-attention.json`.
+The release CLI also completed a synthetic 64-layer profile with both parallel
+RMS and parallel attention selected: all 1,155 operations returned valid timings,
+including 16 attention-value dispatches at history 515, with no profile errors.
+The recorded mode fields matched the selected options. Final formatting and
+`git diff --check` passed.
+Read-only review found no actionable indexing, barrier, aliasing or mode-routing
+issue. The default remains serial until full target-machine evidence supports
+promotion. No v0.4 M5 speedup is claimed.
