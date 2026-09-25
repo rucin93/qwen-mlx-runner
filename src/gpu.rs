@@ -15,12 +15,90 @@ use std::collections::HashMap;
 use std::{cell::Cell, time::Instant};
 pub use timing::FrameTiming;
 
+/// Independently selectable target-block schedules for controlled GPU A/B runs.
+/// Measured Apple M5 Pro devices default to MLP R2 plus batched recurrence.
+/// Other devices default to Legacy. Explicit overrides remain available.
+/// Single-token inference is unaffected.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum BlockMatmulMode {
+    #[default]
+    Legacy,
+    Shared,
+    /// R2/T64 only for B3 BF16 Q4/g64 MLP up/down shapes, default on Apple M5 Pro.
+    /// Other shapes, metadata formats and block widths use Legacy.
+    MlpR2,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, serde::Serialize)]
+pub struct BlockKernelMode {
+    pub matmul: BlockMatmulMode,
+    pub batched_delta: bool,
+}
+
+impl Default for BlockKernelMode {
+    fn default() -> Self {
+        Self {
+            matmul: BlockMatmulMode::Legacy,
+            batched_delta: true,
+        }
+    }
+}
+
+impl BlockKernelMode {
+    fn parse_for_device(
+        device_name: &str,
+        matmul: Option<&str>,
+        delta: Option<&str>,
+    ) -> Result<Self> {
+        // Match only the measured device; other M5 variants have no full-model evidence.
+        let default_matmul = match device_name {
+            "Apple M5 Pro" => "mlp-r2",
+            _ => "legacy",
+        };
+        Self::parse(matmul.unwrap_or(default_matmul), delta.unwrap_or("batched"))
+    }
+
+    fn parse(matmul: &str, delta: &str) -> Result<Self> {
+        let matmul = match matmul {
+            "legacy" => BlockMatmulMode::Legacy,
+            "shared" => BlockMatmulMode::Shared,
+            "mlp-r2" => BlockMatmulMode::MlpR2,
+            _ => bail!("QWEN_METAL_BLOCK_MATMUL must be legacy, shared or mlp-r2"),
+        };
+        ensure!(
+            matches!(delta, "sequential" | "batched"),
+            "QWEN_METAL_BLOCK_DELTA must be sequential or batched"
+        );
+        Ok(Self {
+            matmul,
+            batched_delta: delta == "batched",
+        })
+    }
+
+    fn from_env(device_name: &str) -> Result<Self> {
+        let read = |name: &str| -> Result<Option<String>> {
+            match std::env::var(name) {
+                Ok(value) => Ok(Some(value)),
+                Err(std::env::VarError::NotPresent) => Ok(None),
+                Err(error) => Err(error).with_context(|| format!("invalid {name}")),
+            }
+        };
+        Self::parse_for_device(
+            device_name,
+            read("QWEN_METAL_BLOCK_MATMUL")?.as_deref(),
+            read("QWEN_METAL_BLOCK_DELTA")?.as_deref(),
+        )
+    }
+}
+
 pub struct Gpu {
     pub device: Device,
     pub queue: CommandQueue,
     pipelines: HashMap<&'static str, ComputePipelineState>,
     reference_kernels: bool,
     matvec_variant: String,
+    block_kernel_mode: BlockKernelMode,
     parallel_norm: bool,
     parallel_attention: bool,
     bf16_metadata: bool,
@@ -47,11 +125,34 @@ impl DispatchEncoder<'_> {
         threads: usize,
         group_size: usize,
     ) -> Result<()> {
+        self.encode_inner(name, buffers, None, params, threads, group_size)
+    }
+    /// Byte offsets are checked before any buffer binding or dispatch.
+    pub fn encode_offsets(
+        &self,
+        name: &str,
+        buffers: &[&BufferRef],
+        offsets: &[usize],
+        params: &[u32],
+        threads: usize,
+        group_size: usize,
+    ) -> Result<()> {
+        self.encode_inner(name, buffers, Some(offsets), params, threads, group_size)
+    }
+    fn encode_inner(
+        &self,
+        name: &str,
+        buffers: &[&BufferRef],
+        offsets: Option<&[usize]>,
+        params: &[u32],
+        threads: usize,
+        group_size: usize,
+    ) -> Result<()> {
         if let Some(profiler) = &self.gpu.profiler {
             let e = profiler.encoder(self.command, name, params)?;
             let result = self
                 .gpu
-                .encode(e, name, buffers, params, threads, group_size);
+                .encode_inner(e, name, buffers, offsets, params, threads, group_size);
             e.end_encoding();
             if result.is_ok() {
                 profiler.finish_dispatch()?;
@@ -60,10 +161,11 @@ impl DispatchEncoder<'_> {
             }
             result
         } else {
-            self.gpu.encode(
+            self.gpu.encode_inner(
                 self.encoder.unwrap(),
                 name,
                 buffers,
+                offsets,
                 params,
                 threads,
                 group_size,
@@ -93,6 +195,7 @@ const KERNELS: &[&str] = &[
     "conv_silu",
     "delta_norm",
     "delta_step",
+    "delta_step_block",
     "gated_rms",
     "split_q_gate",
     "head_rms",
@@ -121,6 +224,72 @@ const KERNELS: &[&str] = &[
     "matvec_q8_g64_bf16",
     "matvec_q8_g128_bf16",
     "matvec_q4_g64_aligned_bf16",
+    "copy_f32",
+    "matmul_q4_g32_b1",
+    "matmul_q4_g32_b1_bf16",
+    "matmul_q4_g32_b2",
+    "matmul_q4_g32_b2_bf16",
+    "matmul_q4_g32_b3",
+    "matmul_q4_g32_b3_bf16",
+    "matmul_q4_g32_b4",
+    "matmul_q4_g32_b4_bf16",
+    "matmul_q4_g64_b1",
+    "matmul_q4_g64_b1_bf16",
+    "matmul_q4_g64_b2",
+    "matmul_q4_g64_b2_bf16",
+    "matmul_q4_g64_b3",
+    "matmul_q4_g64_b3_bf16",
+    "matmul_q4_g64_b4",
+    "matmul_q4_g64_b4_bf16",
+    "matmul_q4_g128_b1",
+    "matmul_q4_g128_b1_bf16",
+    "matmul_q4_g128_b2",
+    "matmul_q4_g128_b2_bf16",
+    "matmul_q4_g128_b3",
+    "matmul_q4_g128_b3_bf16",
+    "matmul_q4_g128_b4",
+    "matmul_q4_g128_b4_bf16",
+    "matmul_q8_g32_b1",
+    "matmul_q8_g32_b1_bf16",
+    "matmul_q8_g32_b2",
+    "matmul_q8_g32_b2_bf16",
+    "matmul_q8_g32_b3",
+    "matmul_q8_g32_b3_bf16",
+    "matmul_q8_g32_b4",
+    "matmul_q8_g32_b4_bf16",
+    "matmul_q8_g64_b1",
+    "matmul_q8_g64_b1_bf16",
+    "matmul_q8_g64_b2",
+    "matmul_q8_g64_b2_bf16",
+    "matmul_q8_g64_b3",
+    "matmul_q8_g64_b3_bf16",
+    "matmul_q8_g64_b4",
+    "matmul_q8_g64_b4_bf16",
+    "matmul_q8_g128_b1",
+    "matmul_q8_g128_b1_bf16",
+    "matmul_q8_g128_b2",
+    "matmul_q8_g128_b2_bf16",
+    "matmul_q8_g128_b3",
+    "matmul_q8_g128_b3_bf16",
+    "matmul_q8_g128_b4",
+    "matmul_q8_g128_b4_bf16",
+    "matmul_f16_b1",
+    "matmul_f16_b2",
+    "matmul_f16_b3",
+    "matmul_f16_b4",
+    "matmul_q4_g64_b1_aligned",
+    "matmul_q4_g64_b1_aligned_bf16",
+    "matmul_q4_g64_b2_aligned",
+    "matmul_q4_g64_b2_aligned_bf16",
+    "matmul_q4_g64_b3_aligned",
+    "matmul_q4_g64_b3_aligned_bf16",
+    "matmul_q4_g64_b4_aligned",
+    "matmul_q4_g64_b4_aligned_bf16",
+    "matmul_q4_g64_b2_shared_aligned",
+    "matmul_q4_g64_b2_shared_aligned_bf16",
+    "matmul_q4_g64_b3_shared_aligned",
+    "matmul_q4_g64_b3_shared_aligned_bf16",
+    "matmul_q4_g64_b3_mlp_r2_aligned_bf16",
 ];
 impl Gpu {
     pub fn new() -> Result<Self> {
@@ -156,6 +325,7 @@ impl Gpu {
         );
         let device = Device::system_default()
             .context("No Metal GPU available; this engine requires Apple Silicon")?;
+        let block_kernel_mode = BlockKernelMode::from_env(device.name())?;
         ensure!(
             device.has_unified_memory(),
             "Only unified-memory Apple Silicon GPUs are supported"
@@ -192,14 +362,19 @@ impl Gpu {
                     "\n",
                     include_str!("../kernels/matvec_stream.metal"),
                     "\n",
-                    include_str!("../kernels/affine_bf16.metal")
+                    include_str!("../kernels/affine_bf16.metal"),
+                    "\n",
+                    include_str!("../kernels/matmul_block.metal")
                 ),
                 &mat_options,
             )
             .map_err(|e| anyhow!("Metal matvec shader compilation failed: {e}"))?;
         let mut pipelines = HashMap::new();
         for &name in KERNELS {
-            let function = (if name.starts_with("matvec_q") {
+            let function = (if name.starts_with("matvec_q")
+                || name.starts_with("matmul_")
+                || name == "copy_f32"
+            {
                 &mat_library
             } else {
                 &library
@@ -215,6 +390,15 @@ impl Gpu {
                         || name.ends_with("_aligned_bf16")
                         || name.ends_with("_stream")
                     {
+                        64
+                    } else {
+                        128
+                    },
+                );
+            }
+            if name.starts_with("matmul_") {
+                descriptor.set_max_total_threads_per_threadgroup(
+                    if name.ends_with("_aligned") || name.ends_with("_aligned_bf16") {
                         64
                     } else {
                         128
@@ -240,6 +424,7 @@ impl Gpu {
             pipelines,
             reference_kernels,
             matvec_variant: variant.into(),
+            block_kernel_mode,
             parallel_norm: norm_mode == "parallel",
             parallel_attention: attention_mode == "parallel",
             bf16_metadata: metadata_mode == "bf16" && !reference_kernels,
@@ -256,6 +441,14 @@ impl Gpu {
         } else {
             &self.matvec_variant
         }
+    }
+    pub fn block_kernel_mode(&self) -> BlockKernelMode {
+        self.block_kernel_mode
+    }
+    /// Call only between completed command buffers; Engine additionally requires
+    /// empty model state before changing an inference schedule.
+    pub fn set_block_kernel_mode(&mut self, mode: BlockKernelMode) {
+        self.block_kernel_mode = mode;
     }
     pub fn norm_mode(&self) -> &str {
         if self.parallel_norm && !self.reference_kernels {
@@ -409,20 +602,122 @@ impl Gpu {
         threads: usize,
         group_size: usize,
     ) -> Result<()> {
+        self.encode_inner(encoder, name, buffers, None, params, threads, group_size)
+    }
+    /// Bind checked byte-offset views without allocating a list for ordinary dispatches.
+    pub fn encode_offsets(
+        &self,
+        encoder: &ComputeCommandEncoderRef,
+        name: &str,
+        buffers: &[&BufferRef],
+        offsets: &[usize],
+        params: &[u32],
+        threads: usize,
+        group_size: usize,
+    ) -> Result<()> {
+        self.encode_inner(
+            encoder,
+            name,
+            buffers,
+            Some(offsets),
+            params,
+            threads,
+            group_size,
+        )
+    }
+    fn encode_inner(
+        &self,
+        encoder: &ComputeCommandEncoderRef,
+        name: &str,
+        buffers: &[&BufferRef],
+        offsets: Option<&[usize]>,
+        params: &[u32],
+        threads: usize,
+        group_size: usize,
+    ) -> Result<()> {
         let (sizes, expected_threads) = dispatch_layout(name, params)?;
+        ensure!(
+            !self.reference_kernels || !name.starts_with("matmul_"),
+            "Block matrix dispatch is unavailable in reference mode"
+        );
+        ensure!(
+            sizes.len() == buffers.len(),
+            "{name}: expected {} buffers, got {}",
+            sizes.len(),
+            buffers.len()
+        );
+        ensure!(
+            offsets.is_none_or(|o| o.len() == buffers.len()),
+            "{name}: offset count must match buffers"
+        );
+        let offset = |i: usize| offsets.map_or(0, |o| o[i]);
+        for (i, (buffer, &minimum)) in buffers.iter().zip(&sizes).enumerate() {
+            checked_buffer_range(offset(i), minimum, buffer.length() as usize)
+                .with_context(|| format!("{name}: buffer {i}"))?;
+        }
+        // Matrix output is never an input; parallel copies require disjoint regions
+        // unless the source and destination views are identical.
+        if name.starts_with("matmul_") || name == "copy_f32" {
+            let out = buffers.len() - 1;
+            for i in 0..out {
+                if std::ptr::eq(buffers[i], buffers[out]) {
+                    let identical_copy = name == "copy_f32" && offset(i) == offset(out);
+                    ensure!(
+                        identical_copy
+                            || !ranges_overlap(offset(i), sizes[i], offset(out), sizes[out]),
+                        "{name}: output overlaps input buffer {i}"
+                    );
+                }
+            }
+        }
+        if name == "delta_step_block" {
+            // The three outputs may share an allocation only as disjoint views.
+            // In particular, a snapshot must not overwrite the live state or a
+            // later token's inputs while other SIMD groups still consume them.
+            for out in [5, 6, 7] {
+                for i in 0..buffers.len() {
+                    if i != out && std::ptr::eq(buffers[i], buffers[out]) {
+                        ensure!(
+                            !ranges_overlap(offset(i), sizes[i], offset(out), sizes[out]),
+                            "{name}: output {out} overlaps buffer {i}"
+                        );
+                    }
+                }
+            }
+        }
         ensure!(
             !self.reference_kernels || !name.ends_with("_bf16"),
             "BF16 metadata dispatch is unavailable in reference mode"
         );
-        let specialized = if name == "matvec_affine_bf16" {
+        let specialized = if name.starts_with("matmul_") {
+            Some(
+                specialized_matmul(
+                    name,
+                    params,
+                    self.matvec_variant == "aligned"
+                        && offset(0) % 8 == 0
+                        && offset(if name == "matmul_f16" { 1 } else { 3 }) % 16 == 0,
+                    self.block_kernel_mode.matmul,
+                )
+                .context("Unsupported matrix block specialization")?,
+            )
+        } else if name == "matvec_affine_bf16" {
+            ensure!(
+                offset(3) % 16 == 0,
+                "BF16 matvec input requires a 16-byte aligned offset"
+            );
             // There is no BF16 stream kernel. Explicitly select the packed
             // variant so compressed metadata is never read as FP32.
             Some(
-                specialized_matvec_bf16(params, self.matvec_variant == "aligned")
-                    .context("Unsupported BF16 affine quantization")?,
+                specialized_matvec_bf16(
+                    params,
+                    self.matvec_variant == "aligned" && offset(0) % 8 == 0,
+                )
+                .context("Unsupported BF16 affine quantization")?,
             )
-        } else if !self.reference_kernels && name == "matvec_affine" {
+        } else if !self.reference_kernels && name == "matvec_affine" && offset(3) % 16 == 0 {
             let stream = if self.matvec_variant == "stream"
+                && offset(0) % 8 == 0
                 && params[2] == 4
                 && u64::from(params[0]) * u64::from(params[1]) <= i32::MAX as u64
             {
@@ -435,12 +730,18 @@ impl Gpu {
             } else {
                 None
             };
-            stream.or_else(|| specialized_matvec(params, self.matvec_variant == "aligned"))
+            stream.or_else(|| {
+                specialized_matvec(
+                    params,
+                    self.matvec_variant == "aligned" && offset(0) % 8 == 0,
+                )
+            })
         } else if !self.reference_kernels
             && self.parallel_norm
             && name == "rms_norm"
             && params[0] >= 1024
             && buffers.len() == 3
+            && (0..3).all(|i| offset(i) % 16 == 0)
             && !std::ptr::eq(buffers[0], buffers[2])
             && !std::ptr::eq(buffers[1], buffers[2])
         {
@@ -489,13 +790,8 @@ impl Gpu {
                 && actual_group_size <= pipeline.max_total_threads_per_threadgroup() as usize,
             "{name}: invalid threadgroup size {group_size}"
         );
-        for (i, (buffer, minimum)) in buffers.iter().zip(sizes).enumerate() {
-            ensure!(
-                buffer.length() as usize >= minimum,
-                "{name}: buffer {i} has {} bytes, needs {minimum}",
-                buffer.length()
-            );
-            encoder.set_buffer(i as u64, Some(buffer), 0);
+        for (i, buffer) in buffers.iter().enumerate() {
+            encoder.set_buffer(i as u64, Some(buffer), offset(i) as u64);
         }
         encoder.set_compute_pipeline_state(pipeline);
         encoder.set_bytes(
@@ -507,6 +803,10 @@ impl Gpu {
             256
         } else if specialized == Some("attn_values_parallel") {
             params[0] as usize * (params[2] as usize).div_ceil(32) * 256
+        } else if specialized == Some("matmul_q4_g64_b3_mlp_r2_aligned_bf16") {
+            // Logical ABI remains rows*32; this specialization computes two
+            // output rows per SIMD group instead of Legacy's four.
+            (params[0] as usize).div_ceil(2) * 32
         } else if specialized.is_some() {
             (params[0] as usize).div_ceil(4) * 32
         } else {
@@ -527,15 +827,18 @@ impl Gpu {
             let outputs: &[usize] = match name {
                 "conv_silu" => &[2, 3],
                 "delta_step" => &[5, 6],
+                "delta_step_block" => &[5, 6, 7],
                 "split_q_gate" => &[1, 2],
                 "kv_append" => &[2, 3],
                 "delta_norm" | "head_rms" | "rope" | "softmax" => &[0],
-                "matvec_affine" | "matvec_affine_bf16" => &[4],
+                "matvec_affine" | "matvec_affine_bf16" | "matmul_affine" | "matmul_affine_bf16" => {
+                    &[4]
+                }
                 "embed_affine" | "embed_affine_bf16" | "gated_rms" | "attn_values" => &[3],
-                "embed_f16" => &[1],
+                "embed_f16" | "copy_f32" => &[1],
                 _ => &[2],
             };
-            let mut written: [&ResourceRef; 2] = [&***buffers.first().unwrap(); 2];
+            let mut written: [&ResourceRef; 3] = [&***buffers.first().unwrap(); 3];
             for (out, &index) in written.iter_mut().zip(outputs) {
                 *out = &**buffers[index];
             }
@@ -570,6 +873,128 @@ impl Gpu {
             .ok(),
         );
         Ok(())
+    }
+}
+
+fn checked_buffer_range(offset: usize, minimum: usize, length: usize) -> Result<()> {
+    ensure!(offset % 4 == 0, "GPU buffer offsets must be 4-byte aligned");
+    let end = offset
+        .checked_add(minimum)
+        .context("GPU buffer view byte range overflow")?;
+    ensure!(
+        end <= length,
+        "GPU buffer view ends at {end} bytes but buffer has {length}"
+    );
+    Ok(())
+}
+
+fn ranges_overlap(a: usize, a_len: usize, b: usize, b_len: usize) -> bool {
+    // All views were checked for overflow before alias validation.
+    a < b + b_len && b < a + a_len
+}
+
+fn specialized_matmul(
+    name: &str,
+    p: &[u32],
+    aligned: bool,
+    mode: BlockMatmulMode,
+) -> Option<&'static str> {
+    if name == "matmul_f16" {
+        return [
+            "matmul_f16_b1",
+            "matmul_f16_b2",
+            "matmul_f16_b3",
+            "matmul_f16_b4",
+        ]
+        .get(p[2] as usize - 1)
+        .copied();
+    }
+    if aligned
+        && p[0] % 4 == 0
+        && p[1] % 512 == 0
+        && p[2] == 4
+        && p[3] == 64
+        && u64::from(p[0]) * u64::from(p[1]) <= i32::MAX as u64
+        && u64::from(p[1]) * u64::from(p[4]) <= i32::MAX as u64
+    {
+        if mode == BlockMatmulMode::MlpR2
+            && name == "matmul_affine_bf16"
+            && p[4] == 3
+            && matches!((p[0], p[1]), (17408, 5120) | (5120, 17408))
+        {
+            return Some("matmul_q4_g64_b3_mlp_r2_aligned_bf16");
+        }
+        if mode == BlockMatmulMode::Shared {
+            match (p[4], name.ends_with("_bf16")) {
+                (2, false) => return Some("matmul_q4_g64_b2_shared_aligned"),
+                (2, true) => return Some("matmul_q4_g64_b2_shared_aligned_bf16"),
+                (3, false) => return Some("matmul_q4_g64_b3_shared_aligned"),
+                (3, true) => return Some("matmul_q4_g64_b3_shared_aligned_bf16"),
+                _ => (),
+            }
+        }
+        return match (p[4], name.ends_with("_bf16")) {
+            (1, false) => Some("matmul_q4_g64_b1_aligned"),
+            (1, true) => Some("matmul_q4_g64_b1_aligned_bf16"),
+            (2, false) => Some("matmul_q4_g64_b2_aligned"),
+            (2, true) => Some("matmul_q4_g64_b2_aligned_bf16"),
+            (3, false) => Some("matmul_q4_g64_b3_aligned"),
+            (3, true) => Some("matmul_q4_g64_b3_aligned_bf16"),
+            (4, false) => Some("matmul_q4_g64_b4_aligned"),
+            (4, true) => Some("matmul_q4_g64_b4_aligned_bf16"),
+            _ => None,
+        };
+    }
+    match (p[2], p[3], p[4], name.ends_with("_bf16")) {
+        (4, 32, 1, false) => Some("matmul_q4_g32_b1"),
+        (4, 32, 1, true) => Some("matmul_q4_g32_b1_bf16"),
+        (4, 32, 2, false) => Some("matmul_q4_g32_b2"),
+        (4, 32, 2, true) => Some("matmul_q4_g32_b2_bf16"),
+        (4, 32, 3, false) => Some("matmul_q4_g32_b3"),
+        (4, 32, 3, true) => Some("matmul_q4_g32_b3_bf16"),
+        (4, 32, 4, false) => Some("matmul_q4_g32_b4"),
+        (4, 32, 4, true) => Some("matmul_q4_g32_b4_bf16"),
+        (4, 64, 1, false) => Some("matmul_q4_g64_b1"),
+        (4, 64, 1, true) => Some("matmul_q4_g64_b1_bf16"),
+        (4, 64, 2, false) => Some("matmul_q4_g64_b2"),
+        (4, 64, 2, true) => Some("matmul_q4_g64_b2_bf16"),
+        (4, 64, 3, false) => Some("matmul_q4_g64_b3"),
+        (4, 64, 3, true) => Some("matmul_q4_g64_b3_bf16"),
+        (4, 64, 4, false) => Some("matmul_q4_g64_b4"),
+        (4, 64, 4, true) => Some("matmul_q4_g64_b4_bf16"),
+        (4, 128, 1, false) => Some("matmul_q4_g128_b1"),
+        (4, 128, 1, true) => Some("matmul_q4_g128_b1_bf16"),
+        (4, 128, 2, false) => Some("matmul_q4_g128_b2"),
+        (4, 128, 2, true) => Some("matmul_q4_g128_b2_bf16"),
+        (4, 128, 3, false) => Some("matmul_q4_g128_b3"),
+        (4, 128, 3, true) => Some("matmul_q4_g128_b3_bf16"),
+        (4, 128, 4, false) => Some("matmul_q4_g128_b4"),
+        (4, 128, 4, true) => Some("matmul_q4_g128_b4_bf16"),
+        (8, 32, 1, false) => Some("matmul_q8_g32_b1"),
+        (8, 32, 1, true) => Some("matmul_q8_g32_b1_bf16"),
+        (8, 32, 2, false) => Some("matmul_q8_g32_b2"),
+        (8, 32, 2, true) => Some("matmul_q8_g32_b2_bf16"),
+        (8, 32, 3, false) => Some("matmul_q8_g32_b3"),
+        (8, 32, 3, true) => Some("matmul_q8_g32_b3_bf16"),
+        (8, 32, 4, false) => Some("matmul_q8_g32_b4"),
+        (8, 32, 4, true) => Some("matmul_q8_g32_b4_bf16"),
+        (8, 64, 1, false) => Some("matmul_q8_g64_b1"),
+        (8, 64, 1, true) => Some("matmul_q8_g64_b1_bf16"),
+        (8, 64, 2, false) => Some("matmul_q8_g64_b2"),
+        (8, 64, 2, true) => Some("matmul_q8_g64_b2_bf16"),
+        (8, 64, 3, false) => Some("matmul_q8_g64_b3"),
+        (8, 64, 3, true) => Some("matmul_q8_g64_b3_bf16"),
+        (8, 64, 4, false) => Some("matmul_q8_g64_b4"),
+        (8, 64, 4, true) => Some("matmul_q8_g64_b4_bf16"),
+        (8, 128, 1, false) => Some("matmul_q8_g128_b1"),
+        (8, 128, 1, true) => Some("matmul_q8_g128_b1_bf16"),
+        (8, 128, 2, false) => Some("matmul_q8_g128_b2"),
+        (8, 128, 2, true) => Some("matmul_q8_g128_b2_bf16"),
+        (8, 128, 3, false) => Some("matmul_q8_g128_b3"),
+        (8, 128, 3, true) => Some("matmul_q8_g128_b3_bf16"),
+        (8, 128, 4, false) => Some("matmul_q8_g128_b4"),
+        (8, 128, 4, true) => Some("matmul_q8_g128_b4_bf16"),
+        _ => None,
     }
 }
 
@@ -618,9 +1043,9 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
         "matvec_f16" | "embed_f16" | "rms_norm" | "conv_silu" | "split_q_gate" | "softmax" => 2,
         "matvec_affine" | "embed_affine" | "matvec_affine_bf16" | "embed_affine_bf16"
         | "delta_step" | "attn_scores" | "attn_values" => 4,
-        "delta_norm" | "gated_rms" | "head_rms" | "kv_append" => 3,
-        "rope" => 5,
-        "add" | "swiglu" => 1,
+        "delta_norm" | "gated_rms" | "head_rms" | "kv_append" | "matmul_f16" => 3,
+        "rope" | "matmul_affine" | "matmul_affine_bf16" | "delta_step_block" => 5,
+        "add" | "swiglu" | "copy_f32" => 1,
         _ => bail!("Unknown GPU kernel {name}"),
     };
     ensure!(p.len() == count, "{name}: expected {count} parameters");
@@ -705,6 +1130,50 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
                 },
             )
         }
+        "matmul_affine" | "matmul_affine_bf16" | "matmul_f16" => {
+            positive(&[0, 1])?;
+            let affine = name != "matmul_f16";
+            let batch = n(if affine { 4 } else { 2 });
+            ensure!(
+                (1..=4).contains(&batch),
+                "Matrix blocks support one through four RHS"
+            );
+            let total = product(&[n(0), n(1)])?;
+            let mut sizes = if affine {
+                ensure!(
+                    supported_bf16_quantization(p[2], n(3)),
+                    "Matrix blocks support affine Q4/Q8 groups 32, 64 or 128"
+                );
+                ensure!(
+                    n(1) % (32 / n(2)) == 0 && n(1) % n(3) == 0,
+                    "Invalid packed matrix alignment"
+                );
+                let metadata = (total / n(3))
+                    .checked_mul(if name.ends_with("_bf16") { 2 } else { 4 })
+                    .context("Affine block metadata byte size overflow")?;
+                vec![
+                    total
+                        .checked_mul(n(2))
+                        .context("Packed block byte size overflow")?
+                        / 8,
+                    metadata,
+                    metadata,
+                ]
+            } else {
+                vec![
+                    total
+                        .checked_mul(2)
+                        .context("Dense block byte size overflow")?,
+                ]
+            };
+            sizes.push(f(product(&[batch, n(1)])?)?);
+            sizes.push(f(product(&[batch, n(0)])?)?);
+            (sizes, product(&[n(0), 32])?)
+        }
+        "copy_f32" => {
+            positive(&[0])?;
+            (vec![f(n(0))?; 2], n(0))
+        }
         "rms_norm" => {
             positive(&[0])?;
             eps(1)?;
@@ -731,7 +1200,7 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
             eps(2)?;
             (vec![f(product(&[2, n(0), n(1)])?)?], product(&[n(0), 32])?)
         }
-        "delta_step" => {
+        "delta_step" | "delta_step_block" => {
             positive(&[0, 1, 2, 3])?;
             ensure!(
                 n(1) % n(0) == 0,
@@ -742,18 +1211,29 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
                 .checked_add(values)
                 .context("QKV shape overflow")?;
             ensure!(qkv <= u32::MAX as usize, "QKV index overflow");
-            (
-                vec![
-                    f(qkv)?,
-                    f(n(1))?,
-                    f(n(1))?,
-                    f(n(1))?,
-                    f(n(1))?,
-                    f(product(&[values, n(2)])?)?,
-                    f(values)?,
-                ],
-                product(&[values, 32])?,
-            )
+            let batch = if name == "delta_step_block" {
+                ensure!(n(2) <= 128, "DeltaNet block key dimension must be <=128");
+                ensure!(
+                    (1..=4).contains(&n(4)),
+                    "DeltaNet block width must be 1..=4"
+                );
+                n(4)
+            } else {
+                1
+            };
+            let mut sizes = vec![
+                f(product(&[qkv, batch])?)?,
+                f(product(&[n(1), batch])?)?,
+                f(product(&[n(1), batch])?)?,
+                f(n(1))?,
+                f(n(1))?,
+                f(product(&[values, n(2)])?)?,
+                f(product(&[values, batch])?)?,
+            ];
+            if name == "delta_step_block" {
+                sizes.push(f(product(&[values, n(2), batch])?)?);
+            }
+            (sizes, product(&[values, 32])?)
         }
         "gated_rms" => {
             positive(&[0, 1])?;
@@ -815,6 +1295,273 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn block_kernel_device_defaults_are_limited_to_measured_m5_pro() -> Result<()> {
+        for (device_name, expected) in [
+            ("Apple M5 Pro", BlockMatmulMode::MlpR2),
+            ("Apple M5", BlockMatmulMode::Legacy),
+            ("Apple M5 Max", BlockMatmulMode::Legacy),
+            ("Apple M1", BlockMatmulMode::Legacy),
+            ("Apple M1 Pro", BlockMatmulMode::Legacy),
+            ("Apple M4 Pro", BlockMatmulMode::Legacy),
+            ("Apple M5 Pro Max", BlockMatmulMode::Legacy),
+            ("apple m5 pro", BlockMatmulMode::Legacy),
+            ("Apple M5 Pro ", BlockMatmulMode::Legacy),
+            ("", BlockMatmulMode::Legacy),
+        ] {
+            assert_eq!(
+                BlockKernelMode::parse_for_device(device_name, None, None)?,
+                BlockKernelMode {
+                    matmul: expected,
+                    batched_delta: true,
+                },
+                "unexpected default for {device_name:?}"
+            );
+        }
+        assert_eq!(BlockKernelMode::default().matmul, BlockMatmulMode::Legacy);
+        Ok(())
+    }
+
+    #[test]
+    fn block_kernel_explicit_modes_override_device_defaults() -> Result<()> {
+        for device_name in ["Apple M5 Pro", "Apple M1"] {
+            for (matmul, expected) in [
+                ("legacy", BlockMatmulMode::Legacy),
+                ("shared", BlockMatmulMode::Shared),
+                ("mlp-r2", BlockMatmulMode::MlpR2),
+            ] {
+                for (delta, batched_delta) in [("sequential", false), ("batched", true)] {
+                    assert_eq!(
+                        BlockKernelMode::parse_for_device(device_name, Some(matmul), Some(delta))?,
+                        BlockKernelMode {
+                            matmul: expected,
+                            batched_delta,
+                        }
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            BlockKernelMode::parse_for_device("Apple M5 Pro", None, Some("sequential"))?,
+            BlockKernelMode {
+                matmul: BlockMatmulMode::MlpR2,
+                batched_delta: false,
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn block_kernel_device_defaults_reject_invalid_overrides() {
+        for device_name in ["Apple M5 Pro", "Apple M1"] {
+            for invalid in ["", "auto", "LEGACY", "legacy ", "mlp_r2", "MLP-R2"] {
+                assert!(
+                    BlockKernelMode::parse_for_device(device_name, Some(invalid), None).is_err()
+                );
+                assert!(
+                    BlockKernelMode::parse_for_device(device_name, None, Some(invalid)).is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn block_kernel_modes_are_independent_and_reject_unknown_values() -> Result<()> {
+        assert_eq!(
+            BlockKernelMode::parse("legacy", "batched")?,
+            BlockKernelMode::default()
+        );
+        for (value, mode) in [
+            ("legacy", BlockMatmulMode::Legacy),
+            ("shared", BlockMatmulMode::Shared),
+            ("mlp-r2", BlockMatmulMode::MlpR2),
+        ] {
+            for (delta, batched_delta) in [("sequential", false), ("batched", true)] {
+                assert_eq!(
+                    BlockKernelMode::parse(value, delta)?,
+                    BlockKernelMode {
+                        matmul: mode,
+                        batched_delta
+                    }
+                );
+            }
+        }
+        for invalid in ["", "auto", "SHARED", "shared ", "mlp_r2", "MLP-R2"] {
+            assert!(BlockKernelMode::parse(invalid, "sequential").is_err());
+            assert!(BlockKernelMode::parse("legacy", invalid).is_err());
+        }
+        assert_eq!(
+            serde_json::to_value(BlockKernelMode::default())?,
+            serde_json::json!({"matmul":"legacy", "batched_delta":true})
+        );
+        assert_eq!(serde_json::to_value(BlockMatmulMode::MlpR2)?, "mlp_r2");
+        Ok(())
+    }
+
+    #[test]
+    fn shared_matmul_selection_changes_only_supported_aligned_batches() {
+        for batch in 1..=4 {
+            for name in ["matmul_affine", "matmul_affine_bf16"] {
+                let params = [20, 5120, 4, 64, batch];
+                let legacy =
+                    specialized_matmul(name, &params, true, BlockMatmulMode::Legacy).unwrap();
+                let shared =
+                    specialized_matmul(name, &params, true, BlockMatmulMode::Shared).unwrap();
+                assert!(!legacy.contains("_shared"));
+                assert_eq!(shared.contains("_shared"), matches!(batch, 2 | 3));
+                if matches!(batch, 1 | 4) {
+                    assert_eq!(legacy, shared);
+                }
+                for (fallback, aligned) in [
+                    (params, false),
+                    ([19, 5120, 4, 64, batch], true),
+                    ([20, 5120, 8, 64, batch], true),
+                    ([20, 5120, 4, 32, batch], true),
+                ] {
+                    assert_eq!(
+                        specialized_matmul(name, &fallback, aligned, BlockMatmulMode::Legacy),
+                        specialized_matmul(name, &fallback, aligned, BlockMatmulMode::Shared),
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn mlp_r2_selection_is_limited_to_measured_shapes_and_format() {
+        // The vocabulary head, dense weights, other quantizations and remainder
+        // blocks must stay on the old kernels, even when MLP R2 is selected.
+        for (rows, cols) in [
+            (17408, 5120),
+            (5120, 17408),
+            (248320, 5120),
+            (20, 5120),
+            (17408, 512),
+            (17412, 5120),
+        ] {
+            for batch in 1..=4 {
+                for name in ["matmul_affine", "matmul_affine_bf16"] {
+                    for (bits, group) in [(4, 32), (4, 64), (4, 128), (8, 64)] {
+                        for aligned in [false, true] {
+                            let params = [rows, cols, bits, group, batch];
+                            let want_r2 = aligned
+                                && name == "matmul_affine_bf16"
+                                && batch == 3
+                                && bits == 4
+                                && group == 64
+                                && matches!((rows, cols), (17408, 5120) | (5120, 17408));
+                            let selected =
+                                specialized_matmul(name, &params, aligned, BlockMatmulMode::MlpR2);
+                            if want_r2 {
+                                assert_eq!(selected, Some("matmul_q4_g64_b3_mlp_r2_aligned_bf16"));
+                            } else {
+                                assert_eq!(
+                                    selected,
+                                    specialized_matmul(
+                                        name,
+                                        &params,
+                                        aligned,
+                                        BlockMatmulMode::Legacy
+                                    ),
+                                    "fallback {name} {params:?} aligned={aligned}"
+                                );
+                            }
+                        }
+                    }
+                }
+                let dense = [rows, cols, batch];
+                assert_eq!(
+                    specialized_matmul("matmul_f16", &dense, true, BlockMatmulMode::MlpR2),
+                    specialized_matmul("matmul_f16", &dense, true, BlockMatmulMode::Legacy)
+                );
+            }
+        }
+    }
+    #[test]
+    fn buffer_views_reject_misalignment_bounds_and_integer_wraparound() {
+        assert!(checked_buffer_range(4, 12, 16).is_ok());
+        assert!(checked_buffer_range(0, 16, 16).is_ok());
+        assert!(checked_buffer_range(4, 16, 16).is_err());
+        assert!(checked_buffer_range(2, 12, 16).is_err());
+        assert!(checked_buffer_range(usize::MAX - 3, 8, usize::MAX).is_err());
+        assert!(ranges_overlap(0, 8, 4, 8));
+        assert!(!ranges_overlap(0, 8, 8, 8));
+    }
+    #[test]
+    fn block_specialization_preserves_alignment_and_all_batch_sizes() {
+        for batch in 1..=4 {
+            let params = [20, 5120, 4, 64, batch];
+            assert!(
+                specialized_matmul("matmul_affine", &params, true, BlockMatmulMode::Legacy)
+                    .unwrap()
+                    .ends_with("_aligned")
+            );
+            assert!(
+                specialized_matmul("matmul_affine_bf16", &params, true, BlockMatmulMode::Legacy)
+                    .unwrap()
+                    .ends_with("_aligned_bf16")
+            );
+            assert!(
+                !specialized_matmul("matmul_affine", &params, false, BlockMatmulMode::Legacy)
+                    .unwrap()
+                    .ends_with("_aligned")
+            );
+            assert!(
+                !specialized_matmul(
+                    "matmul_affine",
+                    &[19, 5120, 4, 64, batch],
+                    true,
+                    BlockMatmulMode::Legacy
+                )
+                .unwrap()
+                .ends_with("_aligned")
+            );
+            assert!(
+                !specialized_matmul(
+                    "matmul_affine",
+                    &[20, 5120, 8, 64, batch],
+                    true,
+                    BlockMatmulMode::Legacy
+                )
+                .unwrap()
+                .ends_with("_aligned")
+            );
+        }
+    }
+    #[test]
+    fn batch_dispatch_layout_sizes_all_rhs_and_rejects_invalid_batches() -> Result<()> {
+        for batch in 1..=4 {
+            let (sizes, threads) = dispatch_layout("matmul_affine", &[3, 128, 4, 64, batch])?;
+            assert_eq!(
+                sizes,
+                vec![192, 24, 24, 512 * batch as usize, 12 * batch as usize]
+            );
+            assert_eq!(threads, 96);
+            let (sizes, _) = dispatch_layout("matmul_affine_bf16", &[3, 128, 8, 32, batch])?;
+            assert_eq!(
+                sizes,
+                vec![384, 24, 24, 512 * batch as usize, 12 * batch as usize]
+            );
+            let (sizes, _) = dispatch_layout("matmul_f16", &[3, 127, batch])?;
+            assert_eq!(sizes, vec![762, 508 * batch as usize, 12 * batch as usize]);
+        }
+        for batch in [0, 5, u32::MAX] {
+            assert!(dispatch_layout("matmul_affine", &[3, 128, 4, 64, batch]).is_err());
+            assert!(dispatch_layout("matmul_f16", &[3, 127, batch]).is_err());
+        }
+        for p in [
+            [3, 127, 4, 64, 2],
+            [3, 256, 4, 256, 2],
+            [3, 128, 2, 64, 2],
+            [u32::MAX, 128, 4, 64, 4],
+        ] {
+            assert!(dispatch_layout("matmul_affine", &p).is_err());
+        }
+        assert!(dispatch_layout("matmul_f16", &[1, u32::MAX, 4]).is_err());
+        assert_eq!(dispatch_layout("copy_f32", &[7])?, (vec![28, 28], 7));
+        assert!(dispatch_layout("copy_f32", &[0]).is_err());
+        Ok(())
+    }
 
     #[test]
     fn bf16_dispatch_keeps_metadata_typed_and_rejects_unsupported_groups() -> Result<()> {

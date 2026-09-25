@@ -1,0 +1,72 @@
+{
+  "provenance": "Local Apple M1 run of uncommitted shared-weight batch kernels, compiled as package version 0.5.0. Same inputs and weights for both modes, sequential GPU execution. These are reused-weight matrix microbenchmarks, not accepted model generation tokens per second.",
+  "build_command": "cargo build --release --offline --locked --example block_matrix_bench -j2",
+  "binary_sha256": "e99568cc7a9e3340063b236cdbd5c648447a60772bc6daf69aac217660908f9e",
+  "commands": [
+    "./target/release/examples/block_matrix_bench --batch 3 --rows 17408 --cols 5120 --iterations 40 --metadata bf16",
+    "./target/release/examples/block_matrix_bench --batch 3 --rows 5120 --cols 17408 --iterations 40 --metadata bf16",
+    "./target/release/examples/block_matrix_bench --batch 3 --rows 248320 --cols 5120 --iterations 12 --metadata bf16"
+  ],
+  "captures": [
+    {
+      "batch": 3,
+      "bits": 4,
+      "block_gpu_median_ms": 2.269874999910826,
+      "block_wall_median_ms": 2.747958,
+      "cols": 5120,
+      "device": "Apple M1",
+      "engine_version": "0.5.0",
+      "gpu_speedup": 2.0227710771982843,
+      "group_size": 64,
+      "iterations_per_mode": 40,
+      "kind": "shared_weight_matrix_block_microbenchmark",
+      "max_absolute_difference": 0,
+      "metadata_mode": "bf16",
+      "note": "Same weights, inputs and output buffer; batch separate GEMVs in one command vs one actual shared-weight block dispatch. Five warmups per mode, alternating AB/BA order. Reused weights may benefit from cache. This is NOT model tokens per second.",
+      "rows": 17408,
+      "sequential_gpu_median_ms": 4.591437498675077,
+      "sequential_wall_median_ms": 5.0369165,
+      "weight_and_metadata_bytes": 50135040
+    },
+    {
+      "batch": 3,
+      "bits": 4,
+      "block_gpu_median_ms": 1.8072500006383052,
+      "block_wall_median_ms": 8.1045205,
+      "cols": 17408,
+      "device": "Apple M1",
+      "engine_version": "0.5.0",
+      "gpu_speedup": 1.7659081468275364,
+      "group_size": 64,
+      "iterations_per_mode": 40,
+      "kind": "shared_weight_matrix_block_microbenchmark",
+      "max_absolute_difference": 0,
+      "metadata_mode": "bf16",
+      "note": "Same weights, inputs and output buffer; batch separate GEMVs in one command vs one actual shared-weight block dispatch. Five warmups per mode, alternating AB/BA order. Reused weights may benefit from cache. This is NOT model tokens per second.",
+      "rows": 5120,
+      "sequential_gpu_median_ms": 3.1914374994812533,
+      "sequential_wall_median_ms": 9.6727085,
+      "weight_and_metadata_bytes": 50135040
+    },
+    {
+      "batch": 3,
+      "bits": 4,
+      "block_gpu_median_ms": 31.974166664440418,
+      "block_wall_median_ms": 32.383874999999996,
+      "cols": 5120,
+      "device": "Apple M1",
+      "engine_version": "0.5.0",
+      "gpu_speedup": 2.370824102998681,
+      "group_size": 64,
+      "iterations_per_mode": 12,
+      "kind": "shared_weight_matrix_block_microbenchmark",
+      "max_absolute_difference": 0,
+      "metadata_mode": "bf16",
+      "note": "Same weights, inputs and output buffer; batch separate GEMVs in one command vs one actual shared-weight block dispatch. Five warmups per mode, alternating AB/BA order. Reused weights may benefit from cache. This is NOT model tokens per second.",
+      "rows": 248320,
+      "sequential_gpu_median_ms": 75.80512500135228,
+      "sequential_wall_median_ms": 76.31129200000001,
+      "weight_and_metadata_bytes": 715161600
+    }
+  ]
+}

@@ -149,7 +149,7 @@ impl Sampler {
         Self { state: seed }
     }
 
-    fn uniform(&mut self) -> f64 {
+    pub(crate) fn uniform(&mut self) -> f64 {
         self.state = self.state.wrapping_add(0x9e3779b97f4a7c15);
         let mut z = self.state;
         z = (z ^ (z >> 30)).wrapping_mul(0xbf58476d1ce4e5b9);

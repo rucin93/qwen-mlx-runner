@@ -276,6 +276,7 @@ impl Engine {
             scratch,
             position: history,
             context,
+            block: None,
         })
     }
 }

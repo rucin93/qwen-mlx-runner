@@ -1,0 +1,23 @@
+{
+  "kind": "synthetic_mtp_oracle_fixture",
+  "generator": "scripts/make_mtp_fixture.py",
+  "generator_sha256": "8757b3dfcee98319dc2e2f1e7f95024a02b2c9ec9f6b7e273b8fe18d44c215ee",
+  "oracle": "Python standard-library scalar float64; evaluates serialized affine Q4 values; uses existing target embedding and LM head.",
+  "training": "None: deterministic synthetic test weights, no performance or quality claim.",
+  "normalization": "Native adapter norms are already multiplicative (HF weight+1 convention sanitized).",
+  "tensor_count": 31,
+  "quantized_matrices": 8,
+  "bf16_norm_vectors": 7,
+  "body_bytes": 10688,
+  "reset_replay_equal": true,
+  "target_files_sha256": {
+    "tests/fixtures/tiny-q4/config.json": "4b95d67b791e4fb9dada825749b2f5efbe0ba5bc3e6f55ec3aa8c4f032a79cbc",
+    "tests/fixtures/tiny-q4/model.safetensors": "336825b419f489d1b271af70450c991ef84071c8c205d8bd5ebc96b8ebabbfb7"
+  },
+  "files_sha256": {
+    "config.json": "a7dbf9d3fe775bf3e466817629607e7ce29c757b017879b26362c8c4178087d4",
+    "model.safetensors": "6277620dd327a0b358905fd98452601233c1256d94abecbb9769907859f1da8d",
+    "golden.json": "c5b3aabd966d56647d163a29bed0444f357ceed7e978e8e3c1e27cb26c173b3b"
+  },
+  "architecture_reference": "https://github.com/Blaizzy/mlx-vlm/blob/ad4a3ccd6483aa2db4d84b70108aca103c6a9b15/mlx_vlm/speculative/drafters/qwen3_5_mtp/qwen3_5_mtp.py"
+}

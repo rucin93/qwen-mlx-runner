@@ -23,19 +23,36 @@ Target-machine throughput is documented through user-supplied M5 Pro results;
 local GPU verification uses an M1. Synthetic tests and microbenchmarks do not
 establish trained-model quality or target throughput.
 
-The latest user-reported M5 Pro / 48 GB result is **16.13 decode tokens/s on
-external power**, over 128 generated steps after warmup. It exceeds 15 tokens/s
-and is 10.75x the original approximately 1.5 tokens/s (11.11x the originally
-reported measured run of 1.45242). This is **one measured run with timing enabled**,
-not yet a repeated three-run uninstrumented median. See the
-[M5 result and reproducible configuration](docs/m5-pro.md).
+The user's full-model 0.6.4 M5 Pro comparison measures **28.69 sustained tokens/s
+with selective MLP R2, versus 27.81 with legacy MTP (+3.16%)** on five mixed
+prompts. Each prompt has three measured runs; R2 improves every paired run and
+matches ordinary target generation's token IDs, text and finish reason,
+including warmups. **The mixed-use 32 tokens/s goal is not reached:** R2 prompt
+medians are 26.18 (explanation), 33.95 (code), 29.29 (analysis), 29.36 (rewrite)
+and 26.03 (planning) tokens/s; only code exceeds 32.
+See the [audited full-model result and remaining budget](docs/m5-selective-r2.md).
 
-The selected configuration is aligned GEMV, parallel RMS, exact BF16 metadata
-and serial attention values. The user clarified that external power was
-connected before the latest run. The approximately 2x jump from the previous
-BF16 measurement cannot be attributed to a new kernel in v0.5; its active shader
-path is unchanged. Power conditions are the leading explanation, pending a
-controlled comparison on the same build.
+Native MTP verifies one target token plus two proposals from the separate
+239 MB adapter. The measured configuration uses aligned GEMV, parallel RMS,
+exact BF16 metadata and serial attention values. The **0.6.5 default policy
+selects selective R2 only for the exact Metal device name `Apple M5 Pro`**;
+other devices retain legacy matrices, and batched DeltaNet remains the default.
+R2 applies only to the two eligible B3 BF16 Q4/group64 MLP shapes; the vocabulary
+head and other shapes/formats/block widths retain their existing dispatch.
+Set `QWEN_METAL_BLOCK_MATMUL=legacy` for an explicit fallback.
+
+Version 0.6.5 also includes a standalone [FP32 TensorOps experiment](docs/tensorops-probe.md).
+The user's M5 Pro sweep rejects this implementation for B3 decode: all 288
+paired samples are slower, with candidate medians 4.21–8.10 times the scalar
+controls. Numerical checks pass, but the experiment stays outside inference.
+The measured R2 configuration remains selected on M5 Pro.
+
+Earlier evidence includes the [16.13 tokens/s ordinary-target measurement](docs/m5-pro.md),
+the [26.77 tokens/s first MTP result](docs/m5-mtp-v0.6.md), and the
+[controlled recovery from the 0.6.1 shared-matrix regression](docs/m5-kernel-comparison.md).
+The latest same-session R2/legacy comparison isolates the R2 gain; differences
+from historical runs include other changes and measurement conditions. See
+[MTP setup and limitations](docs/native-mtp.md) before comparing chat workloads.
 
 Earlier results and implementation evidence remain in the
 [first iteration](docs/performance-2026-09-25.md),
@@ -54,18 +71,22 @@ Implemented:
 - Hybrid Gated DeltaNet recurrence, causal depthwise convolution, grouped-query
   attention, partial RoPE, gated norms, SwiGLU, and residual connections.
 - GPU-resident weights, preallocated scratch space and explicit context capacity.
-- One GPU command buffer per token; no CPU/GPU synchronization between layers.
+- One GPU command buffer per target token or verification block; no CPU/GPU
+  synchronization between target layers.
 - Checkpoint-provided tokenizer and chat template, deterministic seeded sampling.
 - Single active generation, bounded request queue, streaming HTTP responses,
   cancellation, and exact-prefix reuse for the most recent conversation.
+- Optional native MTP generation with causal block verification, GPU state
+  rollback, and greedy or corrected stochastic sampling. No external inference
+  runtime is required; the adapter shares the target embedding and output head.
 
 Current limits:
 
 - Text input only; no images, audio, tools, MoE, or non-default RoPE scaling.
-- Prefill is sequential. Intermediate prompt tokens skip the final vocabulary
-  projection, but there is no batched matrix-matrix prefill yet.
-- No MTP/speculative decoding, Flash Attention, GPU sampling, or M5-specific
-  tensor acceleration yet. These are potential improvements, not hidden features.
+- The ordinary path uses sequential prefill and supports recent-prefix reuse.
+  The experimental MTP path resets caches per request; see its separate timing
+  and prefill results before choosing it for repeated long conversations.
+- No Flash Attention, GPU sampling, or M5-specific tensor acceleration yet.
 - Activations, KV cache, and recurrent state use FP32. This is a numerical
   baseline and uses more cache memory than a mixed-precision implementation.
 - GGUF, AWQ, GPTQ, NVFP4, MXFP4, and arbitrary quantization schemes are unsupported.
@@ -119,22 +140,27 @@ output correctness.
 
 ## Local chat server
 
-For the M5 Pro configuration observed at 16.13 tokens/s, connect external power
-and use:
+For the measured M5 Pro MTP configuration, download the companion adapter as
+described in [MTP setup](docs/native-mtp.md), connect external power, disable
+Low Power Mode, and use:
 
 ```sh
 QWEN_METAL_REFERENCE=0 QWEN_METAL_GEMV=aligned \
 QWEN_METAL_NORM=parallel QWEN_METAL_METADATA=bf16 QWEN_METAL_ATTN_VALUES=serial \
   ./target/release/qwen-metal serve \
   --model models/Qwen3.8-27B-4bit \
+  --mtp models/Qwen3.8-27B-MTP-4bit --mtp-block-size 3 \
   --context 8192 \
   --listen 127.0.0.1:8080
 ```
 
-The measurement is for the fixed-token benchmark. Chat latency also depends on
-prompt length, sampling settings and prefix reuse; model quality remains subject
-to the validation limit above. Global defaults remain conservative for other
-Apple Silicon machines.
+The 28.69 tokens/s result measures greedy decode over five prompts, not HTTP
+end-to-end latency. Chat speed also depends on prompt length and sampling.
+MTP resets caches per request; omit `--mtp` and `--mtp-block-size` to use ordinary
+generation with recent-prefix reuse. Version 0.6.5 chooses selective R2 on
+`Apple M5 Pro`; for the same selection on 0.6.4, add
+`QWEN_METAL_BLOCK_MATMUL=mlp-r2`. Model quality remains subject to the validation
+limit above.
 
 The served model ID is the final component of the model directory path. Confirm
 it with `GET /v1/models`.

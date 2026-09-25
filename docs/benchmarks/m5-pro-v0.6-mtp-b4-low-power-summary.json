@@ -1,0 +1,62 @@
+{
+  "kind": "user_report_summary_not_original_json",
+  "provenance": "Selected values transcribed from the complete block-4 JSON pasted by the user in this conversation. This file is a summary, not the original full report.",
+  "engine_version": "0.6.0",
+  "device": "Apple M5 Pro",
+  "block_size": 4,
+  "measured_runs_per_prompt_per_mode": 1,
+  "low_power_mode_in_all_reported_snapshots": true,
+  "thermal_state_in_all_reported_snapshots": "nominal",
+  "greedy_agreement_reported": true,
+  "sustained_tokens_per_mode": 635,
+  "mtp_decode_seconds": 56.455602209000006,
+  "sequential_decode_seconds": 69.148266834,
+  "mtp_sustained_tokens_per_second": 11.247776574045117,
+  "sequential_sustained_tokens_per_second": 9.183165812736934,
+  "accepted_drafts": 409,
+  "proposed_drafts": 671,
+  "target_rounds": 226,
+  "per_prompt": [
+    {
+      "name": "pl-explanation",
+      "mtp_tps": 9.99451449340696,
+      "sequential_tps": 9.27837423086493,
+      "accepted": 75,
+      "proposed": 154,
+      "rounds": 52
+    },
+    {
+      "name": "en-code",
+      "mtp_tps": 14.63222724856536,
+      "sequential_tps": 9.08914271524173,
+      "accepted": 92,
+      "proposed": 105,
+      "rounds": 35
+    },
+    {
+      "name": "pl-analysis",
+      "mtp_tps": 11.383699845335784,
+      "sequential_tps": 9.18960503256514,
+      "accepted": 82,
+      "proposed": 134,
+      "rounds": 45
+    },
+    {
+      "name": "en-rewrite",
+      "mtp_tps": 11.634360317376302,
+      "sequential_tps": 9.153493014597178,
+      "accepted": 83,
+      "proposed": 131,
+      "rounds": 44
+    },
+    {
+      "name": "pl-planning",
+      "mtp_tps": 9.771548975267951,
+      "sequential_tps": 9.20732776977537,
+      "accepted": 77,
+      "proposed": 147,
+      "rounds": 50
+    }
+  ],
+  "limitation": "Different power conditions from the block-3 report; do not attribute the cross-report slowdown solely to block width. No normal-power block-4 rate has been measured."
+}
