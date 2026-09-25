@@ -1,0 +1,7 @@
+2026-09-25 22:27:51.626 block_affine_fp16_probe[46856:1810357] Metal API Validation Enabled
+2026-09-25 22:27:51.626 block_affine_fp16_probe[46856:1810357] Metal GPU Validation Enabled
+checking affine_fp16_m32_single
+Error: affine_fp16_m32_single 1x64 B1 normal
+
+Caused by:
+    nonfinite or unwritten output
