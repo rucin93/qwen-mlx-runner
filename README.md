@@ -79,10 +79,12 @@ Implemented:
 - Optional native MTP generation with causal block verification, GPU state
   rollback, and greedy or corrected stochastic sampling. No external inference
   runtime is required; the adapter shares the target embedding and output head.
+- OpenCode-compatible Chat Completions with function tools, tool-result history,
+  streaming usage, stop sequences, reasoning fields, and sampling penalties.
 
 Current limits:
 
-- Text input only; no images, audio, tools, MoE, or non-default RoPE scaling.
+- Text input and function tools only; no images, audio, MoE, or non-default RoPE scaling.
 - The ordinary path uses sequential prefill and supports recent-prefix reuse.
   The experimental MTP path resets caches per request; see its separate timing
   and prefill results before choosing it for repeated long conversations.
@@ -182,15 +184,39 @@ curl http://127.0.0.1:8080/v1/chat/completions \
 ```
 
 Routes: `GET /health`, `GET /v1/models`, `POST /v1/chat/completions`.
-The server accepts text messages with `system`, `user`, and `assistant` roles.
-Supported request fields are `model`, `messages`, `max_tokens` (or
-`max_completion_tokens`), `temperature`, `top_p`, `top_k`, `seed`, `stream`, and
-`enable_thinking`. The output cap is 4096 tokens per request. Prompt plus output
-budget must fit `--context`. It binds only to loopback.
+The server accepts text messages with `system`, `developer`, `user`, `assistant`,
+and `tool` roles, including multipart text and assistant tool-call history.
+Supported controls include `tools`, `tool_choice`, `parallel_tool_calls`,
+`stream_options`, `stop`, `max_tokens` / `max_completion_tokens`, `temperature`,
+`top_p`, `top_k`, `seed`, `frequency_penalty`, `presence_penalty`, `logit_bias`,
+`reasoning_effort`, and `enable_thinking`. The output cap is 4096 tokens per
+request. Prompt plus output budget must fit `--context`; overflow returns HTTP
+400 with `context_length_exceeded`, including before streaming starts.
+The server binds only to loopback.
 
-Thinking is off by default. When requested, reasoning is returned as visible
-`<think>...</think>` text rather than a separate `reasoning_content` field.
-Historical reasoning is not preserved as a separate chat-template field.
+Thinking is off by default. HTTP responses separate reasoning into
+`reasoning_content`, and the same field is supported in assistant history.
+The CLI retains its existing text presentation. Function calls are returned to
+the client for execution; the server does not execute tools. Tool constraints
+use checkpoint prompting and output validation, not grammar-constrained decoding.
+See the [complete compatibility contract](docs/openai-compatibility.md) for
+accepted defaults, JSON object mode, streaming semantics and explicit limits.
+
+### OpenCode
+
+Start the server above and copy [examples/opencode.json](examples/opencode.json)
+to `opencode.json` in the project you want OpenCode to work on, or merge its
+provider/model settings into your existing config. Then run `opencode` in that
+project. The config uses `@ai-sdk/openai-compatible`, the local `/v1` endpoint,
+and this model for both main and small-model tasks. No API key is needed.
+
+The example declares an 8192-token context and a 2048-token output budget;
+update the context value together with the server's `--context` if you change
+it. Explicit limits prevent OpenCode from requesting a default output budget
+larger than this server supports. Large repositories or long tool histories
+can still require compaction. Integration tests exercise the actual adapter
+version used by the inspected OpenCode release; trained-model tool selection
+and argument quality still require evaluation with your checkpoint.
 
 For a single terminal request:
 
@@ -329,13 +355,15 @@ QWEN_METAL_NORM=parallel QWEN_METAL_METADATA=bf16 \
 
 ```sh
 cargo test --locked
-cargo test --locked -- --ignored
+cargo test --locked -- --ignored --test-threads=1 --skip opencode_sdk_tool_round_trip
 cargo fmt --all -- --check
 ```
 
 The second command explicitly runs tests requiring a real Metal GPU. They fail
 if no device is available; they do not silently succeed. The first command lists
 them as ignored so file-format/API tests can also run in GPU-restricted sandboxes.
+The separate ignored OpenCode SDK test requires Node.js and an isolated install
+of its exact adapter version; see [the test commands](docs/openai-compatibility.md).
 
 `tests/fixtures/tiny` and `tiny-q4` are small, untrained synthetic models,
 not Qwen weights. Regenerate them and their independent scalar reference logits with:

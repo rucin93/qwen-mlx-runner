@@ -22,6 +22,11 @@ use tokio::sync::mpsc as async_mpsc;
 
 use crate::chat::{GenerationOutput, GenerationRequest, Message, TextGenerator};
 
+mod output;
+mod request;
+use output::{Delta, OutputProcessor, Reply};
+use request::{ParsedRequest, RequestError, ResponseFormat, StreamOptions};
+
 const QUEUE_CAPACITY: usize = 4;
 const EVENT_CAPACITY: usize = 16;
 const MAX_TOKENS: usize = 4096;
@@ -31,17 +36,23 @@ static COMPLETION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 struct ServerState {
     sender: SyncSender<Job>,
     model: String,
+    vocab_size: Option<usize>,
 }
 
 struct Job {
     request: GenerationRequest,
+    stop: Vec<String>,
+    response_format: ResponseFormat,
+    id: String,
     events: async_mpsc::Sender<WorkerEvent>,
     cancelled: Arc<AtomicBool>,
 }
 
 enum WorkerEvent {
-    Text(String),
-    Done(GenerationOutput),
+    Ready,
+    InvalidRequest(RequestError),
+    Delta(Delta),
+    Done(GenerationOutput, Reply),
     Error(String),
 }
 
@@ -57,11 +68,16 @@ pub async fn serve(engine: Box<dyn TextGenerator>, address: SocketAddr) -> Resul
         bail!("HTTP server must bind to a loopback address");
     }
     let model = engine.model_id().to_owned();
+    let vocab_size = engine.vocab_size();
     let (sender, receiver) = mpsc::sync_channel(QUEUE_CAPACITY);
     std::thread::Builder::new()
         .name("qwen-generation".into())
         .spawn(move || worker(engine, receiver))?;
-    let app = router(ServerState { sender, model });
+    let app = router(ServerState {
+        sender,
+        model,
+        vocab_size,
+    });
     let listener = tokio::net::TcpListener::bind(address).await?;
     axum::serve(listener, app).await?;
     Ok(())
@@ -77,27 +93,129 @@ fn router(state: ServerState) -> Router {
 }
 
 fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
-    while let Ok(job) = receiver.recv() {
-        if job.cancelled.load(Ordering::Relaxed) {
+    while let Ok(mut job) = receiver.recv() {
+        if job.cancelled.load(Ordering::Relaxed) || job.events.is_closed() {
             continue;
         }
-        let mut on_text = |part: &str| -> bool {
-            if job.cancelled.load(Ordering::Relaxed) {
-                return false;
+        if job.response_format == ResponseFormat::JsonObject {
+            let instruction = "Respond with one valid JSON object only. Do not use Markdown code fences or text outside the JSON object.";
+            if let Some(first) = job
+                .request
+                .messages
+                .first_mut()
+                .filter(|m| m.role == "system")
+            {
+                first.content.push_str("\n\n");
+                first.content.push_str(instruction);
+            } else {
+                job.request.messages.insert(
+                    0,
+                    Message {
+                        role: "system".into(),
+                        content: instruction.into(),
+                        ..Default::default()
+                    },
+                );
             }
-            if part.is_empty() {
-                return !job.events.is_closed();
-            }
-            job.events
-                .blocking_send(WorkerEvent::Text(part.to_owned()))
-                .is_ok()
+        }
+        if let Err(error) = engine.validate_request(&job.request) {
+            let code = if error
+                .downcast_ref::<crate::chat::ContextLengthExceeded>()
+                .is_some()
+            {
+                "context_length_exceeded"
+            } else {
+                "invalid_value"
+            };
+            let _ = job
+                .events
+                .blocking_send(WorkerEvent::InvalidRequest(RequestError {
+                    message: error.to_string(),
+                    param: "messages".into(),
+                    code,
+                }));
+            continue;
+        }
+        if job.events.blocking_send(WorkerEvent::Ready).is_err() {
+            continue;
+        }
+        let mut processor = OutputProcessor::new(
+            job.stop,
+            job.request.tools.clone(),
+            format!("call_{}", job.id),
+            job.request.enable_thinking,
+        );
+        let buffered = job.response_format == ResponseFormat::JsonObject;
+        let mut processing_error = None;
+        let result = {
+            let mut on_text = |part: &str| -> bool {
+                if job.cancelled.load(Ordering::Relaxed) || job.events.is_closed() {
+                    return false;
+                }
+                if part.is_empty() {
+                    return !processor.stopped() && processing_error.is_none();
+                }
+                match processor.push(part) {
+                    Ok(deltas) => {
+                        if !buffered {
+                            for delta in deltas {
+                                if job.events.blocking_send(WorkerEvent::Delta(delta)).is_err() {
+                                    return false;
+                                }
+                            }
+                        }
+                        !processor.stopped()
+                    }
+                    Err(error) => {
+                        processing_error = Some(error.to_string());
+                        false
+                    }
+                }
+            };
+            engine.generate(&job.request, &mut on_text)
         };
-        let result = engine.generate(&job.request, &mut on_text);
-        if job.cancelled.load(Ordering::Relaxed) {
+        if job.cancelled.load(Ordering::Relaxed) || job.events.is_closed() {
             continue;
         }
+        let result = result.and_then(|mut output| {
+            if let Some(error) = processing_error {
+                bail!("{error}");
+            }
+            let tail = processor.finish(&output.text)?;
+            if buffered {
+                let json: Value = serde_json::from_str(&processor.reply.content).map_err(|e| {
+                    anyhow::anyhow!("model did not produce the requested JSON object: {e}")
+                })?;
+                if !json.is_object() {
+                    bail!("model did not produce the requested JSON object");
+                }
+                if !processor.reply.reasoning.is_empty() {
+                    let _ = job
+                        .events
+                        .blocking_send(WorkerEvent::Delta(Delta::Reasoning(
+                            processor.reply.reasoning.clone(),
+                        )));
+                }
+                let _ = job.events.blocking_send(WorkerEvent::Delta(Delta::Content(
+                    processor.reply.content.clone(),
+                )));
+            } else {
+                for delta in tail {
+                    if job.events.blocking_send(WorkerEvent::Delta(delta)).is_err() {
+                        bail!("client disconnected");
+                    }
+                }
+            }
+            if processor.stopped() {
+                output.finish_reason = "stop".into();
+            } else if !processor.reply.calls.is_empty() && output.finish_reason == "stop" {
+                output.finish_reason = "tool_calls".into();
+            }
+            output.text = processor.reply.content.clone();
+            Ok((output, processor.reply))
+        });
         let event = match result {
-            Ok(output) => WorkerEvent::Done(output),
+            Ok((output, reply)) => WorkerEvent::Done(output, reply),
             Err(error) => WorkerEvent::Error(error.to_string()),
         };
         let _ = job.events.blocking_send(event);
@@ -108,139 +226,110 @@ async fn models(State(state): State<ServerState>) -> Json<Value> {
     Json(json!({"object":"list","data":[{"id":state.model,"object":"model","owned_by":"local"}]}))
 }
 
+fn error_body(message: impl Into<String>, kind: &str, param: Option<&str>, code: &str) -> Value {
+    json!({"error":{"message":message.into(),"type":kind,"param":param,"code":code}})
+}
 fn api_error(status: StatusCode, message: impl Into<String>) -> Response {
+    let kind = if status.is_server_error() {
+        "server_error"
+    } else {
+        "invalid_request_error"
+    };
     (
         status,
-        Json(json!({"error":{"message":message.into(),"type":"invalid_request_error"}})),
+        Json(error_body(
+            message,
+            kind,
+            None,
+            if status.is_server_error() {
+                "generation_error"
+            } else {
+                "invalid_request"
+            },
+        )),
+    )
+        .into_response()
+}
+fn request_error(error: RequestError) -> Response {
+    let status = if error.code == "model_not_found" {
+        StatusCode::NOT_FOUND
+    } else {
+        StatusCode::BAD_REQUEST
+    };
+    (
+        status,
+        Json(error_body(
+            error.message,
+            "invalid_request_error",
+            Some(&error.param),
+            error.code,
+        )),
     )
         .into_response()
 }
 
-fn parse_request(
-    value: Value,
-    model_id: &str,
-) -> std::result::Result<(GenerationRequest, bool), String> {
-    let object = value.as_object().ok_or("request must be a JSON object")?;
-    for key in object.keys() {
-        if !matches!(
-            key.as_str(),
-            "model"
-                | "messages"
-                | "max_tokens"
-                | "max_completion_tokens"
-                | "temperature"
-                | "top_p"
-                | "top_k"
-                | "seed"
-                | "stream"
-                | "enable_thinking"
-        ) {
-            return Err(format!("unsupported request field: {key}"));
+struct ChunkEncoder {
+    id: String,
+    model: String,
+    created: u64,
+    options: StreamOptions,
+    service_tier: bool,
+    random: Option<std::fs::File>,
+}
+impl ChunkEncoder {
+    fn new(id: String, model: String, options: StreamOptions, service_tier: bool) -> Result<Self> {
+        Ok(Self {
+            id,
+            model,
+            created: now(),
+            options,
+            service_tier,
+            random: if options.include_obfuscation {
+                Some(std::fs::File::open("/dev/urandom")?)
+            } else {
+                None
+            },
+        })
+    }
+    fn event(
+        &mut self,
+        choices: Value,
+        usage: Option<Value>,
+        timings: Option<Value>,
+    ) -> Result<Event> {
+        let mut value = json!({"id":self.id,"object":"chat.completion.chunk","created":self.created,"model":self.model,"choices":choices});
+        if self.options.include_usage {
+            value["usage"] = usage.unwrap_or(Value::Null);
         }
-    }
-    let model = object
-        .get("model")
-        .and_then(Value::as_str)
-        .ok_or("model must be a string")?;
-    if model != model_id {
-        return Err(format!("unknown model: {model}"));
-    }
-    let raw_messages = object
-        .get("messages")
-        .and_then(Value::as_array)
-        .ok_or("messages must be an array")?;
-    if raw_messages.is_empty() {
-        return Err("messages must not be empty".into());
-    }
-    let mut messages = Vec::with_capacity(raw_messages.len());
-    for (index, item) in raw_messages.iter().enumerate() {
-        let item = item
-            .as_object()
-            .ok_or_else(|| format!("messages[{index}] must be an object"))?;
-        for key in item.keys() {
-            if !matches!(key.as_str(), "role" | "content") {
-                return Err(format!("unsupported messages[{index}] field: {key}"));
+        if let Some(timings) = timings {
+            value["timings"] = timings;
+        }
+        if self.service_tier {
+            value["service_tier"] = json!("default");
+        }
+        if let Some(random) = &mut self.random {
+            if value["choices"].as_array().is_some_and(|a| !a.is_empty()) {
+                use std::io::Read;
+                value["obfuscation"] = json!("");
+                let bytes = serde_json::to_vec(&value)?.len();
+                let length = bytes.div_ceil(256) * 256 - bytes;
+                let mut padding = vec![0u8; length];
+                random.read_exact(&mut padding)?;
+                const ALPHABET: &[u8; 64] =
+                    b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+                value["obfuscation"] = Value::String(
+                    padding
+                        .iter()
+                        .map(|b| ALPHABET[(b & 63) as usize] as char)
+                        .collect(),
+                );
             }
         }
-        let role = item
-            .get("role")
-            .and_then(Value::as_str)
-            .ok_or_else(|| format!("messages[{index}].role must be a string"))?;
-        if !matches!(role, "system" | "user" | "assistant") {
-            return Err(format!("unsupported role: {role}"));
-        }
-        let content = item
-            .get("content")
-            .and_then(Value::as_str)
-            .ok_or_else(|| format!("messages[{index}].content must be text"))?;
-        messages.push(Message {
-            role: role.to_owned(),
-            content: content.to_owned(),
-        });
+        Ok(Event::default().data(serde_json::to_string(&value)?))
     }
-    if object.contains_key("max_tokens") && object.contains_key("max_completion_tokens") {
-        return Err("set only one of max_tokens or max_completion_tokens".into());
-    }
-    let max_tokens = match object
-        .get("max_tokens")
-        .or_else(|| object.get("max_completion_tokens"))
-    {
-        None => 256,
-        Some(v) => usize::try_from(v.as_u64().ok_or("max_tokens must be a positive integer")?)
-            .map_err(|_| "max_tokens is too large")?,
-    };
-    if max_tokens == 0 || max_tokens > MAX_TOKENS {
-        return Err(format!("max_tokens must be in 1..={MAX_TOKENS}"));
-    }
-    let float = |key: &str, default: f64| -> std::result::Result<f32, String> {
-        let value = match object.get(key) {
-            Some(v) => v
-                .as_f64()
-                .ok_or_else(|| format!("{key} must be a number"))?,
-            None => default,
-        };
-        if !value.is_finite() || value > f32::MAX as f64 || value < -(f32::MAX as f64) {
-            return Err(format!("{key} must be finite"));
-        }
-        Ok(value as f32)
-    };
-    let temperature = float("temperature", 1.0)?;
-    let top_p = float("top_p", 1.0)?;
-    if temperature < 0.0 || temperature > 2.0 {
-        return Err("temperature must be in [0, 2]".into());
-    }
-    if top_p <= 0.0 || top_p > 1.0 {
-        return Err("top_p must be in (0, 1]".into());
-    }
-    let top_k = match object.get("top_k") {
-        Some(v) => usize::try_from(v.as_u64().ok_or("top_k must be a nonnegative integer")?)
-            .map_err(|_| "top_k is too large")?,
-        None => 0,
-    };
-    let seed = match object.get("seed") {
-        Some(v) => v.as_u64().ok_or("seed must be a nonnegative integer")?,
-        None => 0,
-    };
-    let stream = match object.get("stream") {
-        Some(v) => v.as_bool().ok_or("stream must be a boolean")?,
-        None => false,
-    };
-    let enable_thinking = match object.get("enable_thinking") {
-        Some(v) => v.as_bool().ok_or("enable_thinking must be a boolean")?,
-        None => false,
-    };
-    Ok((
-        GenerationRequest {
-            messages,
-            max_tokens,
-            temperature,
-            top_p,
-            top_k,
-            seed,
-            enable_thinking,
-        },
-        stream,
-    ))
+}
+fn choice(delta: Value, finish: Option<&str>) -> Value {
+    json!([{"index":0,"delta":delta,"finish_reason":finish,"logprobs":null}])
 }
 
 fn now() -> u64 {
@@ -250,17 +339,60 @@ fn now() -> u64 {
         .as_secs()
 }
 
-async fn completions(State(state): State<ServerState>, Json(value): Json<Value>) -> Response {
-    let (request, stream) = match parse_request(value, &state.model) {
-        Ok(parsed) => parsed,
-        Err(message) => return api_error(StatusCode::BAD_REQUEST, message),
+async fn completions(
+    State(state): State<ServerState>,
+    body: std::result::Result<Json<Value>, axum::extract::rejection::JsonRejection>,
+) -> Response {
+    let value = match body {
+        Ok(Json(v)) => v,
+        Err(error) => return api_error(error.status(), error.body_text()),
     };
-    let enable_thinking = request.enable_thinking;
-    let (events, receiver) = async_mpsc::channel(EVENT_CAPACITY);
+    let ParsedRequest {
+        generation,
+        stream,
+        stream_options,
+        stop,
+        response_format,
+        service_tier,
+    } = match request::parse(value, &state.model) {
+        Ok(r) => r,
+        Err(error) => return request_error(error),
+    };
+    if let Some(vocab_size) = state.vocab_size {
+        if let Err(error) = generation.sampling.validate(vocab_size) {
+            return request_error(RequestError {
+                message: error.to_string(),
+                param: "logit_bias".into(),
+                code: "invalid_value",
+            });
+        }
+    }
+    let id = format!(
+        "chatcmpl-{}-{}",
+        now(),
+        COMPLETION_SEQUENCE.fetch_add(1, Ordering::Relaxed)
+    );
+    let encoder = if stream {
+        match ChunkEncoder::new(
+            id.clone(),
+            state.model.clone(),
+            stream_options,
+            service_tier,
+        ) {
+            Ok(e) => Some(e),
+            Err(e) => return api_error(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()),
+        }
+    } else {
+        None
+    };
+    let (events, mut receiver) = async_mpsc::channel(EVENT_CAPACITY);
     let cancelled = Arc::new(AtomicBool::new(false));
     let guard = CancelOnDrop(cancelled.clone());
     if let Err(error) = state.sender.try_send(Job {
-        request,
+        request: generation,
+        stop,
+        response_format,
+        id: id.clone(),
         events,
         cancelled,
     }) {
@@ -273,67 +405,89 @@ async fn completions(State(state): State<ServerState>, Json(value): Json<Value>)
             }
         };
     }
-    let id = format!(
-        "chatcmpl-{}-{}",
-        now(),
-        COMPLETION_SEQUENCE.fetch_add(1, Ordering::Relaxed)
-    );
-    if stream {
-        let model = state.model;
-        let created = now();
-        let mut receiver = receiver;
+    // Validate and tokenize on the model worker before committing successful
+    // SSE headers. OpenCode uses the 400 context error to compact long histories.
+    match receiver.recv().await {
+        Some(WorkerEvent::Ready) => {}
+        Some(WorkerEvent::InvalidRequest(error)) => return request_error(error),
+        Some(WorkerEvent::Error(message)) => {
+            return api_error(StatusCode::INTERNAL_SERVER_ERROR, message);
+        }
+        _ => {
+            return api_error(
+                StatusCode::SERVICE_UNAVAILABLE,
+                "generation worker stopped before request validation",
+            );
+        }
+    }
+    if let Some(mut encoder) = encoder {
         let stream = async_stream::stream! {
-            let _guard = guard;
-            let mut terminal = false;
-            yield Ok::<Event, std::convert::Infallible>(Event::default().data(json!({"id":id,"object":"chat.completion.chunk","created":created,"model":model,"choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}).to_string()));
-            if enable_thinking {
-                // The checkpoint prompt ends with this opening tag. Restore it in visible output.
-                yield Ok(Event::default().data(json!({"id":id,"object":"chat.completion.chunk","created":created,"model":model,"choices":[{"index":0,"delta":{"content":"<think>\n"},"finish_reason":null}]}).to_string()));
+            let _guard=guard;
+            let mut terminal=false;
+            let mut tool_index=0;
+            match encoder.event(choice(json!({"role":"assistant","content":""}),None),None,None) {
+                Ok(event)=>yield Ok::<Event,std::convert::Infallible>(event),
+                Err(error)=>{yield Ok(Event::default().data(error_body(error.to_string(),"server_error",None,"stream_error").to_string()));yield Ok(Event::default().data("[DONE]"));return;}
             }
-            while let Some(event) = receiver.recv().await {
-                match event {
-                    WorkerEvent::Text(text) => yield Ok(Event::default().data(json!({"id":id,"object":"chat.completion.chunk","created":created,"model":model,"choices":[{"index":0,"delta":{"content":text},"finish_reason":null}]}).to_string())),
-                    WorkerEvent::Done(output) => {
-                        terminal = true;
-                        yield Ok(Event::default().data(json!({"id":id,"object":"chat.completion.chunk","created":created,"model":model,"choices":[{"index":0,"delta":{},"finish_reason":output.finish_reason}],"usage":usage(&output),"timings":timings(&output)}).to_string()));
-                        yield Ok(Event::default().data("[DONE]"));
-                        break;
+            while let Some(event)=receiver.recv().await {
+                let encoded=match event {
+                    WorkerEvent::Ready=>continue,
+                    WorkerEvent::InvalidRequest(error)=>{terminal=true;yield Ok(Event::default().data(error_body(error.message,"invalid_request_error",Some(&error.param),error.code).to_string()));yield Ok(Event::default().data("[DONE]"));break;}
+                    WorkerEvent::Delta(delta)=>{
+                        let delta=match delta {
+                            Delta::Content(text)=>json!({"content":text}),
+                            Delta::Reasoning(text)=>json!({"reasoning_content":text}),
+                            Delta::Tool(call)=>{let index=tool_index;tool_index+=1;json!({"tool_calls":[{"index":index,"id":call.id,"type":call.kind,"function":call.function}]})}
+                        };
+                        encoder.event(choice(delta,None),None,None)
                     }
-                    WorkerEvent::Error(message) => {
-                        terminal = true;
-                        yield Ok(Event::default().data(json!({"error":{"message":message,"type":"generation_error"}}).to_string()));
-                        yield Ok(Event::default().data("[DONE]"));
-                        break;
+                    WorkerEvent::Done(output,_)=>{
+                        terminal=true;
+                        match encoder.event(choice(json!({}),Some(&output.finish_reason)),None,Some(timings(&output))) {
+                            Ok(event)=>yield Ok(event),Err(error)=>{yield Ok(Event::default().data(error_body(error.to_string(),"server_error",None,"stream_error").to_string()));yield Ok(Event::default().data("[DONE]"));break;}
+                        }
+                        if stream_options.include_usage {
+                            match encoder.event(json!([]),Some(usage(&output)),None) {
+                                Ok(event)=>yield Ok(event),Err(error)=>yield Ok(Event::default().data(error_body(error.to_string(),"server_error",None,"stream_error").to_string())),
+                            }
+                        }
+                        yield Ok(Event::default().data("[DONE]"));break;
                     }
-                }
+                    WorkerEvent::Error(message)=>{terminal=true;yield Ok(Event::default().data(error_body(message,"server_error",None,"generation_error").to_string()));yield Ok(Event::default().data("[DONE]"));break;}
+                };
+                match encoded {Ok(event)=>yield Ok(event),Err(error)=>{terminal=true;yield Ok(Event::default().data(error_body(error.to_string(),"server_error",None,"stream_error").to_string()));yield Ok(Event::default().data("[DONE]"));break;}}
             }
-            if !terminal {
-                yield Ok(Event::default().data(json!({"error":{"message":"generation worker stopped","type":"generation_error"}}).to_string()));
-                yield Ok(Event::default().data("[DONE]"));
-            }
+            if !terminal {yield Ok(Event::default().data(error_body("generation worker stopped","server_error",None,"generation_error").to_string()));yield Ok(Event::default().data("[DONE]"));}
         };
         Sse::new(stream)
             .keep_alive(KeepAlive::default())
             .into_response()
     } else {
         let _guard = guard;
-        let mut receiver = receiver;
-        let mut streamed = String::new();
         while let Some(event) = receiver.recv().await {
             match event {
-                WorkerEvent::Text(part) => streamed.push_str(&part),
+                WorkerEvent::Ready => {}
+                WorkerEvent::InvalidRequest(error) => return request_error(error),
+                WorkerEvent::Delta(_) => {}
                 WorkerEvent::Error(message) => {
                     return api_error(StatusCode::INTERNAL_SERVER_ERROR, message);
                 }
-                WorkerEvent::Done(output) => {
-                    // The engine's final text is authoritative; callbacks may deliver partial UTF-8-safe prefixes.
-                    let _ = streamed;
-                    let content = if enable_thinking {
-                        format!("<think>\n{}", output.text)
-                    } else {
-                        output.text.clone()
-                    };
-                    return Json(json!({"id":id,"object":"chat.completion","created":now(),"model":state.model,"choices":[{"index":0,"message":{"role":"assistant","content":content},"finish_reason":output.finish_reason}],"usage":usage(&output),"timings":timings(&output)})).into_response();
+                WorkerEvent::Done(output, reply) => {
+                    let mut message = json!({"role":"assistant","content":reply.content});
+                    if !reply.reasoning.is_empty() {
+                        message["reasoning_content"] = json!(reply.reasoning);
+                    }
+                    if !reply.calls.is_empty() {
+                        message["tool_calls"] = json!(reply.calls);
+                        if reply.content.is_empty() {
+                            message["content"] = Value::Null;
+                        }
+                    }
+                    let mut value = json!({"id":id,"object":"chat.completion","created":now(),"model":state.model,"choices":[{"index":0,"message":message,"finish_reason":output.finish_reason,"logprobs":null}],"usage":usage(&output),"timings":timings(&output)});
+                    if service_tier {
+                        value["service_tier"] = json!("default");
+                    }
+                    return Json(value).into_response();
                 }
             }
         }
@@ -350,181 +504,4 @@ fn timings(output: &GenerationOutput) -> Value {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use axum::{
-        body::{Body, to_bytes},
-        http::{Request, header},
-    };
-    use tower::ServiceExt;
-
-    struct TestEngine;
-    impl TextGenerator for TestEngine {
-        fn model_id(&self) -> &str {
-            "test-model"
-        }
-        fn generate(
-            &mut self,
-            _: &GenerationRequest,
-            on_text: &mut dyn FnMut(&str) -> bool,
-        ) -> Result<GenerationOutput> {
-            if !on_text("") {
-                bail!("cancelled");
-            }
-            if !on_text("hello") {
-                bail!("cancelled");
-            }
-            Ok(GenerationOutput {
-                text: "hello".into(),
-                prompt_tokens: 2,
-                completion_tokens: 1,
-                finish_reason: "stop".into(),
-                prefill_seconds: 0.1,
-                decode_seconds: 0.2,
-            })
-        }
-    }
-
-    fn app() -> Router {
-        let (sender, receiver) = mpsc::sync_channel(QUEUE_CAPACITY);
-        std::thread::spawn(move || worker(Box::new(TestEngine), receiver));
-        router(ServerState {
-            sender,
-            model: "test-model".into(),
-        })
-    }
-
-    fn body(stream: bool) -> String {
-        json!({"model":"test-model","messages":[{"role":"user","content":"hi"}],"stream":stream})
-            .to_string()
-    }
-
-    #[tokio::test]
-    async fn non_stream_returns_engine_text_and_usage() {
-        let response = app()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/v1/chat/completions")
-                    .header(header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(body(false)))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        let bytes = to_bytes(response.into_body(), 100_000).await.unwrap();
-        let value: Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(value["choices"][0]["message"]["content"], "hello");
-        assert_eq!(value["usage"]["total_tokens"], 3);
-    }
-
-    #[tokio::test]
-    async fn stream_has_delta_finish_and_done() {
-        let response = app()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/v1/chat/completions")
-                    .header(header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(body(true)))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        assert_eq!(response.status(), StatusCode::OK);
-        let bytes = to_bytes(response.into_body(), 100_000).await.unwrap();
-        let text = String::from_utf8(bytes.to_vec()).unwrap();
-        assert!(text.contains("hello"));
-        assert!(text.contains("\"finish_reason\":\"stop\""));
-        assert!(text.contains("[DONE]"));
-    }
-
-    #[tokio::test]
-    async fn rejects_unsupported_payloads() {
-        for payload in [
-            json!({"model":"test-model","messages":[{"role":"user","content":[{"type":"image_url"}]}]}),
-            json!({"model":"test-model","messages":[{"role":"user","content":"hi"}],"tools":[]}),
-            json!({"model":"test-model","messages":[{"role":"user","content":"hi"}],"n":2}),
-        ] {
-            let response = app()
-                .oneshot(
-                    Request::builder()
-                        .method("POST")
-                        .uri("/v1/chat/completions")
-                        .header(header::CONTENT_TYPE, "application/json")
-                        .body(Body::from(payload.to_string()))
-                        .unwrap(),
-                )
-                .await
-                .unwrap();
-            assert_eq!(response.status(), StatusCode::BAD_REQUEST);
-        }
-    }
-
-    #[tokio::test]
-    async fn thinking_output_has_opening_boundary() {
-        let payload = json!({"model":"test-model","messages":[{"role":"user","content":"hi"}],"enable_thinking":true});
-        let response = app()
-            .oneshot(
-                Request::builder()
-                    .method("POST")
-                    .uri("/v1/chat/completions")
-                    .header(header::CONTENT_TYPE, "application/json")
-                    .body(Body::from(payload.to_string()))
-                    .unwrap(),
-            )
-            .await
-            .unwrap();
-        let bytes = to_bytes(response.into_body(), 100_000).await.unwrap();
-        let value: Value = serde_json::from_slice(&bytes).unwrap();
-        assert_eq!(value["choices"][0]["message"]["content"], "<think>\nhello");
-    }
-
-    #[test]
-    fn dropped_client_cancels_generation_at_empty_poll() {
-        struct ProbeEngine(Arc<AtomicBool>);
-        impl TextGenerator for ProbeEngine {
-            fn model_id(&self) -> &str {
-                "probe"
-            }
-            fn generate(
-                &mut self,
-                _: &GenerationRequest,
-                on_text: &mut dyn FnMut(&str) -> bool,
-            ) -> Result<GenerationOutput> {
-                self.0.store(!on_text(""), Ordering::Relaxed);
-                bail!("cancelled")
-            }
-        }
-        let observed = Arc::new(AtomicBool::new(false));
-        let (sender, receiver) = mpsc::sync_channel(1);
-        let handle = std::thread::spawn({
-            let observed = observed.clone();
-            move || worker(Box::new(ProbeEngine(observed)), receiver)
-        });
-        let (events, client) = async_mpsc::channel(1);
-        drop(client);
-        sender
-            .send(Job {
-                request: GenerationRequest {
-                    messages: vec![Message {
-                        role: "user".into(),
-                        content: "hi".into(),
-                    }],
-                    max_tokens: 1,
-                    temperature: 0.0,
-                    top_p: 1.0,
-                    top_k: 0,
-                    seed: 0,
-                    enable_thinking: false,
-                },
-                events,
-                cancelled: Arc::new(AtomicBool::new(false)),
-            })
-            .unwrap();
-        drop(sender);
-        handle.join().unwrap();
-        assert!(observed.load(Ordering::Relaxed));
-    }
-}
+mod tests;

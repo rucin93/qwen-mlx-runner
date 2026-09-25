@@ -43,6 +43,7 @@ fn chat_prefix_reuse_and_cancelled_state_match_fresh_generation() {
         messages: vec![Message {
             role: "user".into(),
             content: "w6 w7".into(),
+            ..Default::default()
         }],
         max_tokens: 6,
         temperature: 0.,
@@ -50,6 +51,7 @@ fn chat_prefix_reuse_and_cancelled_state_match_fresh_generation() {
         top_k: 0,
         seed: 42,
         enable_thinking: false,
+        ..Default::default()
     };
     let mut reused = ChatEngine::load(&path, 128).unwrap();
     let initial = reused.generate(&request, &mut |_| true).unwrap();
@@ -57,10 +59,12 @@ fn chat_prefix_reuse_and_cancelled_state_match_fresh_generation() {
     continuation.messages.push(Message {
         role: "assistant".into(),
         content: initial.text,
+        ..Default::default()
     });
     continuation.messages.push(Message {
         role: "user".into(),
         content: "w8".into(),
+        ..Default::default()
     });
     let warm = reused.generate(&continuation, &mut |_| true).unwrap();
     let mut fresh = ChatEngine::load(&path, 128).unwrap();

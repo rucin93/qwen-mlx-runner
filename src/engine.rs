@@ -10,7 +10,10 @@ use anyhow::{Context, Result, ensure};
 use metal::{Buffer, BufferRef};
 
 use crate::{
-    chat::{ChatTokenizer, GenerationOutput, GenerationRequest, Sampler, TextGenerator},
+    chat::{
+        ChatTokenizer, GenerationOutput, GenerationRequest, Sampler, TextGenerator,
+        sampling::LogitProcessor,
+    },
     config::ModelConfig,
     gpu::{DispatchEncoder, FrameTiming, Gpu, ProfileRow},
     weights::{Checkpoint, MatrixData},
@@ -843,6 +846,14 @@ impl TextGenerator for ChatEngine {
     fn model_id(&self) -> &str {
         &self.model_id
     }
+    fn vocab_size(&self) -> Option<usize> {
+        Some(self.engine.config().vocab_size)
+    }
+    fn validate_request(&self, r: &GenerationRequest) -> Result<()> {
+        r.sampling.validate(self.engine.config().vocab_size)?;
+        self.tokenizer
+            .validate_request(r, self.engine.context_capacity())
+    }
     fn generate(
         &mut self,
         r: &GenerationRequest,
@@ -857,9 +868,8 @@ impl TextGenerator for ChatEngine {
             r.top_p.is_finite() && r.top_p > 0. && r.top_p <= 1.,
             "invalid top_p"
         );
-        let prompt = self
-            .tokenizer
-            .encode(&self.tokenizer.render(&r.messages, r.enable_thinking)?)?;
+        let mut processor = LogitProcessor::new(r.sampling.clone(), self.engine.config.vocab_size)?;
+        let prompt = self.tokenizer.encode(&self.tokenizer.render_request(r)?)?;
         ensure!(!prompt.is_empty(), "empty prompt after tokenization");
         ensure!(
             prompt
@@ -905,14 +915,16 @@ impl TextGenerator for ChatEngine {
                 finish = "cancelled";
                 break;
             }
-            let token = sampler.sample(&self.cached_logits, r.temperature, r.top_p, r.top_k)?;
+            let logits = processor.process(&self.cached_logits)?;
+            let token = sampler.sample(&logits, r.temperature, r.top_p, r.top_k)?;
             count += 1;
+            processor.record(token)?;
             if self.engine.config.eos_token_ids.contains(&token) {
                 finish = "stop";
                 break;
             }
             tokens.push(token);
-            let decoded = if r.enable_thinking {
+            let decoded = if r.preserve_special_tokens() {
                 self.tokenizer.decode_with_special_tokens(&tokens)?
             } else {
                 self.tokenizer.decode(&tokens)?
@@ -936,7 +948,7 @@ impl TextGenerator for ChatEngine {
         // If output ended in a partial UTF-8 sequence, return the tokenizer's replacement,
         // ensuring non-stream and stream represent the same completed text.
         if finish != "cancelled" {
-            let final_text = if r.enable_thinking {
+            let final_text = if r.preserve_special_tokens() {
                 self.tokenizer.decode_with_special_tokens(&tokens)?
             } else {
                 self.tokenizer.decode(&tokens)?

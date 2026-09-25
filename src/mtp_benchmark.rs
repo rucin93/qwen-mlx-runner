@@ -176,6 +176,7 @@ fn request(options: &Options, prompt: &Prompt) -> GenerationRequest {
         messages: vec![Message {
             role: "user".into(),
             content: prompt.prompt.clone(),
+            ..Default::default()
         }],
         max_tokens: options.max_tokens,
         temperature: options.temperature,
@@ -183,6 +184,7 @@ fn request(options: &Options, prompt: &Prompt) -> GenerationRequest {
         top_k: options.top_k,
         seed: options.seed,
         enable_thinking: options.thinking,
+        ..Default::default()
     }
 }
 fn record(
