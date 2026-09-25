@@ -8,8 +8,12 @@ remains 16.1308 tokens/s; this document does not claim the new target is achieve
 Follow-up: the user's 0.6.0 block-3 report now establishes 26.7659 sustained
 tokens/s versus 16.6282 for its paired sequential baseline, with matching greedy
 traces. [The audited budget](m5-mtp-v0.6.md) identifies target execution as 86.78%
-of decode time. The next bounded changes are shared Q4 unpacking for B2/B3 and
-register-resident multi-step DeltaNet with only necessary rollback snapshots.
+of decode time. Shared Q4 unpacking for B2/B3 and register-resident multi-step
+DeltaNet improved isolated M1 tests, but their combined 0.6.1 release regressed
+to 23.3430 sustained tokens/s on M5. The [next step](performance-v0.6.2.md)
+isolates both changes on the same loaded model; neither remains enabled by
+default pending target-machine evidence. The memory saving from omitting
+unused final rollback snapshots is retained.
 The later block-4 report has Low Power Mode enabled and cannot be compared
 directly to the block-3 result with it disabled.
 

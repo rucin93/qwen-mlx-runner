@@ -416,7 +416,12 @@ fn main() -> Result<()> {
                 &if args.experiment || args.candidate_rows != 4 {
                     format!("tune_q4_b{batch}_r{}{suffix}", args.candidate_rows)
                 } else {
-                    format!("matmul_q4_g64_b{batch}_aligned{suffix}")
+                    let schedule = if matches!(batch, 2 | 3) {
+                        "_shared"
+                    } else {
+                        ""
+                    };
+                    format!("matmul_q4_g64_b{batch}{schedule}_aligned{suffix}")
                 },
                 args.threads,
             )?,

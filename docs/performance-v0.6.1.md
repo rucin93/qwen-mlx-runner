@@ -2,8 +2,11 @@
 
 The user's [0.6.0 M5 report](m5-mtp-v0.6.md) establishes 26.7659 sustained MTP
 tokens/s and matching greedy traces. It spends 86.78% of decode time in target
-model execution. This revision targets that cost. **No 0.6.1 full-model M5
-throughput measurement is available yet; 32 tokens/s is not claimed.**
+model execution. This revision targeted that cost, but the subsequent
+[full-model M5 report](benchmarks/m5-pro-v0.6.1-mtp-b3-user.json) shows a
+**regression to 23.3430 sustained tokens/s, down 12.79%**. Sequential generation
+remained at 16.6204 tokens/s. The isolated M1 wins below did not transfer to
+the full-model M5 workload. See the [regression audit and isolation procedure](performance-v0.6.2.md).
 
 ## Packed matrix blocks
 
@@ -86,5 +89,6 @@ The BF16 block and MTP-manager suites also passed. The release binary reports
 0.6.1 and its public `mtp-bench --compare` smoke test on tiny fixtures returns
 matching greedy IDs with correct capture/count accounting. Formatting and
 `git diff --check` passed.
-These checks establish local correctness evidence and primitive speedups;
-the new release still requires a controlled M5 full-model measurement.
+These checks establish local correctness evidence and M1 primitive speedups.
+The later full-model M5 measurement disproves a throughput improvement for this
+combination; it preserves greedy outputs but is slower than 0.6.0.

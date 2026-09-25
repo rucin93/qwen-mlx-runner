@@ -1,0 +1,10 @@
+[
+  {
+    "name": "pl-explanation",
+    "prompt": "Wyjaśnij różnicę między współbieżnością a równoległością. Podaj po jednym przykładzie z codziennego życia i programowania. Odpowiedz po polsku."
+  },
+  {
+    "name": "en-code",
+    "prompt": "Write a Rust function that merges two sorted slices of i32 into a sorted Vec without sorting again. Include a small example and state its time complexity."
+  }
+]

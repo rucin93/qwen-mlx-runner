@@ -4,8 +4,11 @@ The user-supplied M5 Pro 0.6.0 benchmark measures **26.77 sustained tokens/s wit
 MTP**, versus **16.63** for sequential generation on the same target. Complete
 greedy traces agree across all five prompts. **The mixed-use 32 tokens/s goal
 is not reached yet.** See the [audited result and time budget](m5-mtp-v0.6.md).
-The [0.6.1 follow-up](performance-v0.6.1.md) reduces matrix and recurrent-state
-work; its full-model M5 throughput remains to be measured.
+The [0.6.1 follow-up](performance-v0.6.1.md) regressed to 23.34 sustained tokens/s
+on the same M5 workload despite isolated M1 improvements. Version 0.6.2 restores
+the earlier execution schedules by default and adds a
+[same-model comparison of the two changes](performance-v0.6.2.md). Its M5
+throughput is pending measurement.
 
 Every matrix pass in the measured target graph streams approximately 14.41 GB
 of Q4 weights and BF16 metadata. The [Apple M5 Pro specification](https://www.apple.com/macbook-pro/specs/)

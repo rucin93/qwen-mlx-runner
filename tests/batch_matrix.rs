@@ -234,92 +234,114 @@ fn offset_dispatch_rejects_bounds_and_unsafe_aliases_and_preserves_scalar_fallba
 #[test]
 #[ignore = "requires a real Apple Metal GPU"]
 fn aligned_q4_blocks_match_independent_oracle_and_single_token_path() -> Result<()> {
-    let gpu = Gpu::new_with_variant(false, "aligned")?;
-    for cols in [512usize, 5120, 17408] {
-        let rows = 20;
-        let weights: Vec<u32> = (0..rows * cols / 8)
-            .map(|i| (i as u32).wrapping_mul(0x1478abcf).wrapping_add(0x9e3779b9))
-            .collect();
-        let scales: Vec<f32> = (0..rows * cols / 64)
-            .map(|i| (1 + i % 11) as f32 * 0.001953125)
-            .collect();
-        let biases: Vec<f32> = (0..scales.len())
-            .map(|i| (i % 9) as f32 * 0.00390625 - 0.0625)
-            .collect();
-        let x: Vec<f32> = (0..4 * cols)
-            .map(|i| ((i * 13 % 101) as f32 - 50.) / 50.)
-            .collect();
-        let expected: Vec<f64> = (0..4 * rows)
-            .map(|i| {
-                (0..cols)
-                    .map(|c| {
-                        let q = (weights[(i % rows) * cols / 8 + c / 8] >> ((c % 8) * 4)) & 15;
-                        let gi = (i % rows) * cols / 64 + c / 64;
-                        (q as f64 * scales[gi] as f64 + biases[gi] as f64)
-                            * x[(i / rows) * cols + c] as f64
-                    })
-                    .sum()
-            })
-            .collect();
-        let wb = gpu.upload_bytes(bytemuck::cast_slice(&weights))?;
-        let xb = gpu.upload_f32(&x)?;
-        for bf16 in [false, true] {
-            let upload = |v: &[f32]| {
-                if bf16 {
-                    let values: Vec<u16> = v.iter().map(|x| (x.to_bits() >> 16) as u16).collect();
-                    gpu.upload_bytes(bytemuck::cast_slice(&values))
-                } else {
-                    gpu.upload_f32(v)
-                }
-            };
-            let sb = upload(&scales)?;
-            let bb = upload(&biases)?;
-            for batch in 1..=4 {
-                let y = gpu.alloc_f32(rows * batch)?;
-                let sequential = gpu.alloc_f32(rows * batch)?;
-                let cmd = gpu.begin();
-                let encoder = gpu.begin_encoding(cmd);
-                let matmul = if bf16 {
-                    "matmul_affine_bf16"
-                } else {
-                    "matmul_affine"
+    let mut gpu = Gpu::new_with_variant(false, "aligned")?;
+    let mut legacy_outputs: Vec<Vec<f32>> = Vec::new();
+    for shared_matmul in [false, true] {
+        gpu.set_block_kernel_mode(qwen_metal::gpu::BlockKernelMode {
+            shared_matmul,
+            batched_delta: false,
+        });
+        let mut case_index = 0;
+        for cols in [512usize, 5120, 17408] {
+            let rows = 20;
+            let weights: Vec<u32> = (0..rows * cols / 8)
+                .map(|i| (i as u32).wrapping_mul(0x1478abcf).wrapping_add(0x9e3779b9))
+                .collect();
+            let scales: Vec<f32> = (0..rows * cols / 64)
+                .map(|i| (1 + i % 11) as f32 * 0.001953125)
+                .collect();
+            let biases: Vec<f32> = (0..scales.len())
+                .map(|i| (i % 9) as f32 * 0.00390625 - 0.0625)
+                .collect();
+            let x: Vec<f32> = (0..4 * cols)
+                .map(|i| ((i * 13 % 101) as f32 - 50.) / 50.)
+                .collect();
+            let expected: Vec<f64> = (0..4 * rows)
+                .map(|i| {
+                    (0..cols)
+                        .map(|c| {
+                            let q = (weights[(i % rows) * cols / 8 + c / 8] >> ((c % 8) * 4)) & 15;
+                            let gi = (i % rows) * cols / 64 + c / 64;
+                            (q as f64 * scales[gi] as f64 + biases[gi] as f64)
+                                * x[(i / rows) * cols + c] as f64
+                        })
+                        .sum()
+                })
+                .collect();
+            let wb = gpu.upload_bytes(bytemuck::cast_slice(&weights))?;
+            let xb = gpu.upload_f32(&x)?;
+            for bf16 in [false, true] {
+                let upload = |v: &[f32]| {
+                    if bf16 {
+                        let values: Vec<u16> =
+                            v.iter().map(|x| (x.to_bits() >> 16) as u16).collect();
+                        gpu.upload_bytes(bytemuck::cast_slice(&values))
+                    } else {
+                        gpu.upload_f32(v)
+                    }
                 };
-                let matvec = if bf16 {
-                    "matvec_affine_bf16"
-                } else {
-                    "matvec_affine"
-                };
-                encoder.encode(
-                    matmul,
-                    &[&wb, &sb, &bb, &xb, &y],
-                    &[rows as u32, cols as u32, 4, 64, batch as u32],
-                    rows * 32,
-                    128,
-                )?;
-                for b in 0..batch {
-                    encoder.encode_offsets(
-                        matvec,
-                        &[&wb, &sb, &bb, &xb, &sequential],
-                        &[0, 0, 0, b * cols * 4, b * rows * 4],
-                        &[rows as u32, cols as u32, 4, 64],
+                let sb = upload(&scales)?;
+                let bb = upload(&biases)?;
+                for batch in 1..=4 {
+                    let y = gpu.alloc_f32(rows * batch)?;
+                    let sequential = gpu.alloc_f32(rows * batch)?;
+                    let cmd = gpu.begin();
+                    let encoder = gpu.begin_encoding(cmd);
+                    let matmul = if bf16 {
+                        "matmul_affine_bf16"
+                    } else {
+                        "matmul_affine"
+                    };
+                    let matvec = if bf16 {
+                        "matvec_affine_bf16"
+                    } else {
+                        "matvec_affine"
+                    };
+                    encoder.encode(
+                        matmul,
+                        &[&wb, &sb, &bb, &xb, &y],
+                        &[rows as u32, cols as u32, 4, 64, batch as u32],
                         rows * 32,
                         128,
                     )?;
-                }
-                encoder.end_encoding()?;
-                gpu.finish(cmd)?;
-                let actual = gpu.read_f32(&y, rows * batch)?;
-                assert_close(
-                    &actual,
-                    &expected[..rows * batch],
-                    "aligned batch independent oracle",
-                );
-                let scalar = gpu.read_f32(&sequential, rows * batch)?;
-                for (a, b) in actual.iter().zip(scalar) {
-                    assert!(
-                        (a - b).abs() <= 1e-5 + b.abs() * 3e-6,
-                        "aligned Q4 B{batch} cols{cols} BF16={bf16}: block {a}, sequential {b}"
+                    for b in 0..batch {
+                        encoder.encode_offsets(
+                            matvec,
+                            &[&wb, &sb, &bb, &xb, &sequential],
+                            &[0, 0, 0, b * cols * 4, b * rows * 4],
+                            &[rows as u32, cols as u32, 4, 64],
+                            rows * 32,
+                            128,
+                        )?;
+                    }
+                    encoder.end_encoding()?;
+                    gpu.finish(cmd)?;
+                    let actual = gpu.read_f32(&y, rows * batch)?;
+                    assert_close(
+                        &actual,
+                        &expected[..rows * batch],
+                        "aligned batch independent oracle",
                     );
+                    if shared_matmul {
+                        assert_eq!(
+                            actual.iter().map(|x| x.to_bits()).collect::<Vec<_>>(),
+                            legacy_outputs[case_index]
+                                .iter()
+                                .map(|x| x.to_bits())
+                                .collect::<Vec<_>>(),
+                            "legacy/shared schedules must preserve every bit B{batch} cols{cols} BF16={bf16}"
+                        );
+                    } else {
+                        legacy_outputs.push(actual.clone());
+                    }
+                    case_index += 1;
+                    let scalar = gpu.read_f32(&sequential, rows * batch)?;
+                    for (a, b) in actual.iter().zip(scalar) {
+                        assert!(
+                            (a - b).abs() <= 1e-5 + b.abs() * 3e-6,
+                            "aligned Q4 B{batch} cols{cols} BF16={bf16}: block {a}, sequential {b}"
+                        );
+                    }
                 }
             }
         }

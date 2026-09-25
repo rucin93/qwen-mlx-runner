@@ -45,6 +45,12 @@ greedy traces across five mixed prompts. **The mixed-use 32 tokens/s goal is
 not reached.** See the [audited result](docs/m5-mtp-v0.6.md) and
 [setup, mixed-prompt benchmark and limitations](docs/native-mtp.md).
 
+The subsequent 0.6.1 M5 report regressed to **23.34 sustained tokens/s** with
+the same output tokens. Version 0.6.2 restores the earlier matrix and recurrent
+execution schedules by default and adds an independent, same-model comparison
+of both changes. Its full-model M5 speed has not yet been measured. See the
+[regression analysis and comparison command](docs/performance-v0.6.2.md).
+
 Earlier results and implementation evidence remain in the
 [first iteration](docs/performance-2026-09-25.md),
 [v0.2 profiling](docs/performance-v0.2.md),

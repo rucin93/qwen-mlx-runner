@@ -442,6 +442,24 @@ impl Engine {
     pub fn kernel_mode(&self) -> &str {
         self.gpu.kernel_mode()
     }
+    pub fn block_kernel_mode(&self) -> crate::gpu::BlockKernelMode {
+        self.gpu.block_kernel_mode()
+    }
+    /// Change a target-block schedule without reloading immutable weights.
+    /// Require reset state so an A/B measurement never inherits a previous
+    /// variant's recurrent or attention history, or a pending transaction.
+    pub fn set_block_kernel_mode(&mut self, mode: crate::gpu::BlockKernelMode) -> Result<()> {
+        ensure!(
+            self.position == 0
+                && self
+                    .block
+                    .as_ref()
+                    .is_none_or(|block| block.pending.is_none()),
+            "reset the engine before changing block kernel mode"
+        );
+        self.gpu.set_block_kernel_mode(mode);
+        Ok(())
+    }
     pub fn norm_mode(&self) -> &str {
         self.gpu.norm_mode()
     }

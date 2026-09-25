@@ -80,7 +80,8 @@ inline void block_affine(device const uint *w, device const M *scales,
 
 // Aligned Q4/g64 fast path follows the existing single-token accumulation
 // order exactly: 16 columns per lane, 512-column tiles, four rows per SIMD.
-// B1/B4 keep one RHS's inputs live; B2/B3 share unpacked weights across RHS.
+// The original schedule keeps one RHS's inputs live. Separate B2/B3 pipelines
+// optionally share unpacked weights across RHS for same-binary A/B measurement.
 // Host guarantees X % 16 = 0, W % 8 = 0, rows % 4 = 0, cols % 512 = 0
 // and signed-int-safe products.
 // B2/B3 retain all RHS inputs so each row's four packed words are unpacked
@@ -160,10 +161,6 @@ template<uint B, typename M>
 inline void block_aligned_q4(device const ushort *w, device const M *scales,
                              device const M *bias, device const float *x,
                              device float *y, constant uint *p, uint gid, ushort lane) {
-    if (B == 2 || B == 3) {
-        block_aligned_q4_shared<B,M>(w,scales,bias,x,y,p,gid,lane);
-        return;
-    }
     const int row = (int(gid) / 32) * 4;
     if (row >= int(p[0])) return;
     const int rows = int(p[0]), cols = int(p[1]);
@@ -273,20 +270,24 @@ BLOCK_BATCHES(8,128)
 #undef BLOCK_FORMAT
 #undef BLOCK_AFFINE
 
-#define BLOCK_ALIGNED(NAME,B,M) \
+#define BLOCK_ALIGNED(NAME,B,M,FN) \
 kernel void NAME(device const ushort *w [[buffer(0)]], device const M *s [[buffer(1)]], \
                  device const M *bias [[buffer(2)]], device const float *x [[buffer(3)]], \
                  device float *y [[buffer(4)]], constant uint *p [[buffer(15)]], \
                  uint gid [[thread_position_in_grid]], ushort lane [[thread_index_in_simdgroup]]) { \
-    block_aligned_q4<B,M>(w,s,bias,x,y,p,gid,lane); \
+    FN<B,M>(w,s,bias,x,y,p,gid,lane); \
 }
 #define BLOCK_ALIGNED_BATCH(B) \
-BLOCK_ALIGNED(matmul_q4_g64_b##B##_aligned,B,float) \
-BLOCK_ALIGNED(matmul_q4_g64_b##B##_aligned_bf16,B,ushort)
+BLOCK_ALIGNED(matmul_q4_g64_b##B##_aligned,B,float,block_aligned_q4) \
+BLOCK_ALIGNED(matmul_q4_g64_b##B##_aligned_bf16,B,ushort,block_aligned_q4)
 BLOCK_ALIGNED_BATCH(1)
 BLOCK_ALIGNED_BATCH(2)
 BLOCK_ALIGNED_BATCH(3)
 BLOCK_ALIGNED_BATCH(4)
+BLOCK_ALIGNED(matmul_q4_g64_b2_shared_aligned,2,float,block_aligned_q4_shared)
+BLOCK_ALIGNED(matmul_q4_g64_b2_shared_aligned_bf16,2,ushort,block_aligned_q4_shared)
+BLOCK_ALIGNED(matmul_q4_g64_b3_shared_aligned,3,float,block_aligned_q4_shared)
+BLOCK_ALIGNED(matmul_q4_g64_b3_shared_aligned_bf16,3,ushort,block_aligned_q4_shared)
 #undef BLOCK_ALIGNED_BATCH
 #undef BLOCK_ALIGNED
 

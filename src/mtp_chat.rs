@@ -4,6 +4,9 @@
 //! deliberately does not reuse chat prefixes. Only verified target tokens reach
 //! the output callback; acceptance statistics never stand in for output speed.
 
+mod timing;
+pub use timing::TargetDecodeTiming;
+
 use std::{path::Path, time::Instant};
 
 use anyhow::{Context, Result, bail, ensure};
@@ -32,6 +35,9 @@ pub struct MtpGenerationStats {
     pub round_widths: Vec<usize>,
     /// Decode target execution, including GPU completion and readback.
     pub target_seconds: f64,
+    /// Existing whole-command timestamps, excluding prefill and rollback.
+    /// GPU execution overlaps the completion wait; these fields are not additive.
+    pub target_decode_timing: TargetDecodeTiming,
     /// Decode proposal construction, MTP execution, cache repair and seeding.
     pub draft_seconds: f64,
     /// CPU target acceptance and residual sampling.
@@ -80,6 +86,12 @@ impl MtpChatEngine {
 
     pub fn engine(&self) -> &Engine {
         &self.engine
+    }
+
+    /// Select only the target verification schedule; the native MTP adapter is
+    /// unchanged so a factorial benchmark can isolate the two target kernels.
+    pub fn set_block_kernel_mode(&mut self, mode: crate::gpu::BlockKernelMode) -> Result<()> {
+        self.engine.set_block_kernel_mode(mode)
     }
 
     pub fn clear_cache(&mut self) {
@@ -218,6 +230,9 @@ impl MtpChatEngine {
                 let started = Instant::now();
                 let logits = self.engine.forward(anchor)?;
                 stats.target_seconds += started.elapsed().as_secs_f64();
+                stats
+                    .target_decode_timing
+                    .record(self.engine.last_frame_timing());
                 anchor = Distribution::from_logits(&logits, config)?.sample(&mut rng)?;
                 if !output.push(
                     anchor,
@@ -275,6 +290,9 @@ impl MtpChatEngine {
                 let started = Instant::now();
                 let block = self.engine.verify_block(&inputs)?;
                 stats.target_seconds += started.elapsed().as_secs_f64();
+                stats
+                    .target_decode_timing
+                    .record(self.engine.last_frame_timing());
                 ensure!(
                     block.base_position == base,
                     "target verification base changed"

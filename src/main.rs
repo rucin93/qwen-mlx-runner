@@ -111,6 +111,9 @@ enum Command {
         /// Compare against sequential target generation on the same loaded model.
         #[arg(long)]
         compare: bool,
+        /// Compare all four target block kernel configurations on one loaded model (greedy only).
+        #[arg(long, conflicts_with = "compare")]
+        compare_block_kernels: bool,
     },
     /// Fixed-token autoregressive benchmark; EOS is deliberately ignored.
     Bench {
@@ -193,6 +196,7 @@ fn main() -> Result<()> {
             seed,
             thinking,
             compare,
+            compare_block_kernels,
         } => mtp_benchmark::run(mtp_benchmark::Options {
             model,
             mtp,
@@ -207,6 +211,7 @@ fn main() -> Result<()> {
             seed,
             thinking,
             compare,
+            compare_block_kernels,
         })?,
         Command::Profile {
             model,

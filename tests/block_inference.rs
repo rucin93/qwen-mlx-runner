@@ -3,6 +3,73 @@ use anyhow::Result;
 use qwen_metal::{chat::Sampler, engine::Engine};
 use std::path::{Path, PathBuf};
 
+#[test]
+#[ignore = "requires a real Apple Metal GPU"]
+fn switching_block_kernels_requires_reset_and_preserves_all_prefixes() -> Result<()> {
+    use qwen_metal::gpu::BlockKernelMode;
+    let path = fixture("tiny-bf16");
+    let mut reference = Engine::load(&path, 32)?;
+    let mut engine = Engine::load(&path, 32)?;
+    for shared_matmul in [false, true] {
+        for batched_delta in [false, true] {
+            let mode = BlockKernelMode {
+                shared_matmul,
+                batched_delta,
+            };
+            for width in 1..=4 {
+                for keep in 0..=width {
+                    engine.reset();
+                    reference.reset();
+                    engine.set_block_kernel_mode(mode)?;
+                    assert_eq!(engine.block_kernel_mode(), mode);
+                    for token in [5, 9] {
+                        engine.forward(token)?;
+                        reference.forward(token)?;
+                    }
+                    let other = BlockKernelMode {
+                        shared_matmul: !shared_matmul,
+                        batched_delta: !batched_delta,
+                    };
+                    assert!(engine.set_block_kernel_mode(other).is_err());
+                    assert_eq!(engine.block_kernel_mode(), mode);
+                    let candidates = [7, 21, 4, 30];
+                    let output = engine.verify_block(&candidates[..width])?;
+                    assert!(engine.set_block_kernel_mode(other).is_err());
+                    assert_eq!(engine.block_kernel_mode(), mode);
+                    for (i, &token) in candidates[..width].iter().enumerate() {
+                        let (logits, hidden) = reference.forward_with_hidden(token, true)?;
+                        near(&output.logits[i], &logits, "kernel mode logits");
+                        near(&output.hidden[i], &hidden, "kernel mode normalized hidden");
+                    }
+                    engine.commit_block_prefix(keep)?;
+                    reference.reset();
+                    for token in [5, 9].into_iter().chain(candidates[..keep].iter().copied()) {
+                        reference.forward(token)?;
+                    }
+                    for token in [31, 11] {
+                        near(
+                            &engine.forward(token)?,
+                            &reference.forward(token)?,
+                            "kernel mode continuation",
+                        );
+                    }
+                }
+            }
+        }
+    }
+    engine.reset();
+    engine.verify_block(&[5, 9])?;
+    assert!(
+        engine
+            .set_block_kernel_mode(BlockKernelMode::default())
+            .is_err()
+    );
+    engine.reset();
+    engine.set_block_kernel_mode(BlockKernelMode::default())?;
+    assert_eq!(engine.block_kernel_mode(), BlockKernelMode::default());
+    Ok(())
+}
+
 fn fixture(name: &str) -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures")
@@ -72,6 +139,10 @@ fn wider_key_dimension_fallback_preserves_every_rollback_prefix() -> Result<()> 
     std::fs::write(temporary.path().join("model.safetensors"), checkpoint)?;
     let mut sequential = Engine::load(temporary.path(), 32)?;
     let mut block = Engine::load(temporary.path(), 32)?;
+    block.set_block_kernel_mode(qwen_metal::gpu::BlockKernelMode {
+        shared_matmul: true,
+        batched_delta: true,
+    })?;
     let history = [5, 9, 13];
     let candidates = [7, 21, 4, 30];
     for width in 1..=4 {

@@ -435,7 +435,41 @@ impl Engine {
                         0,
                         snapshots.conv_elements,
                     )?;
-                    if kd > 128 {
+                    let batched_delta = g.block_kernel_mode().batched_delta && kd <= 128;
+                    let delta_step = |i: usize| {
+                        run(
+                            "delta_step",
+                            &[&s.convolved, &s.a, &s.b, &d.alog, &d.dt, &d.state, &s.mixed],
+                            &[
+                                i * qkv * 4,
+                                i * vh * 4,
+                                i * vh * 4,
+                                0,
+                                0,
+                                0,
+                                i * linear_width * 4,
+                            ],
+                            &[kh as u32, vh as u32, kd as u32, vd as u32],
+                            linear_width * 32,
+                            128,
+                        )
+                    };
+                    let gated_rms = |i: usize| {
+                        run(
+                            "gated_rms",
+                            &[&s.mixed, &s.z, &d.norm, &s.gated],
+                            &[
+                                i * linear_width * 4,
+                                i * linear_width * 4,
+                                0,
+                                i * linear_width * 4,
+                            ],
+                            &[vh as u32, vd as u32, eps],
+                            vh * 32,
+                            128,
+                        )
+                    };
+                    if !batched_delta {
                         copy(
                             &e,
                             &d.state,
@@ -462,6 +496,12 @@ impl Engine {
                             kh * 32,
                             128,
                         )?;
+                        if !batched_delta {
+                            // Preserve the original token-interleaved schedule,
+                            // omitting only the unused final snapshot because
+                            // prefix B stays live.
+                            delta_step(i)?;
+                        }
                         if i + 1 < batch {
                             copy(
                                 &e,
@@ -471,9 +511,22 @@ impl Engine {
                                 (i + 1) * snapshots.conv_elements * 4,
                                 snapshots.conv_elements,
                             )?;
+                            if !batched_delta {
+                                copy(
+                                    &e,
+                                    &d.state,
+                                    0,
+                                    &snapshots.state,
+                                    (i + 1) * snapshots.state_elements * 4,
+                                    snapshots.state_elements,
+                                )?;
+                            }
+                        }
+                        if !batched_delta {
+                            gated_rms(i)?;
                         }
                     }
-                    if kd <= 128 {
+                    if batched_delta {
                         e.encode(
                             "delta_step_block",
                             &[
@@ -490,50 +543,9 @@ impl Engine {
                             linear_width * 32,
                             128,
                         )?;
-                    } else {
                         for i in 0..batch {
-                            run(
-                                "delta_step",
-                                &[&s.convolved, &s.a, &s.b, &d.alog, &d.dt, &d.state, &s.mixed],
-                                &[
-                                    i * qkv * 4,
-                                    i * vh * 4,
-                                    i * vh * 4,
-                                    0,
-                                    0,
-                                    0,
-                                    i * linear_width * 4,
-                                ],
-                                &[kh as u32, vh as u32, kd as u32, vd as u32],
-                                linear_width * 32,
-                                128,
-                            )?;
-                            if i + 1 < batch {
-                                copy(
-                                    &e,
-                                    &d.state,
-                                    0,
-                                    &snapshots.state,
-                                    (i + 1) * snapshots.state_elements * 4,
-                                    snapshots.state_elements,
-                                )?;
-                            }
+                            gated_rms(i)?;
                         }
-                    }
-                    for i in 0..batch {
-                        run(
-                            "gated_rms",
-                            &[&s.mixed, &s.z, &d.norm, &s.gated],
-                            &[
-                                i * linear_width * 4,
-                                i * linear_width * 4,
-                                0,
-                                i * linear_width * 4,
-                            ],
-                            &[vh as u32, vd as u32, eps],
-                            vh * 32,
-                            128,
-                        )?;
                     }
                     d.out.matmul_block(&e, &s.gated, &s.residual, batch)?;
                 }

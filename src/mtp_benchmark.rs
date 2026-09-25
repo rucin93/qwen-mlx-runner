@@ -2,6 +2,7 @@
 use anyhow::{Context, Result, ensure};
 use qwen_metal::{
     chat::{ChatTokenizer, GenerationOutput, GenerationRequest, Message},
+    gpu::BlockKernelMode,
     mtp_chat::{MtpChatEngine, MtpGenerationStats},
 };
 use serde::{Deserialize, Serialize};
@@ -22,6 +23,7 @@ pub struct Options {
     pub seed: u64,
     pub thinking: bool,
     pub compare: bool,
+    pub compare_block_kernels: bool,
 }
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct Prompt {
@@ -34,12 +36,49 @@ enum Mode {
     Mtp,
     SequentialTarget,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+enum BlockVariant {
+    LegacySequential,
+    SharedSequential,
+    LegacyBatched,
+    SharedBatched,
+}
+const BLOCK_VARIANTS: [BlockVariant; 4] = [
+    BlockVariant::LegacySequential,
+    BlockVariant::SharedSequential,
+    BlockVariant::LegacyBatched,
+    BlockVariant::SharedBatched,
+];
+impl BlockVariant {
+    fn kernel_mode(self) -> BlockKernelMode {
+        BlockKernelMode {
+            shared_matmul: matches!(self, Self::SharedSequential | Self::SharedBatched),
+            batched_delta: matches!(self, Self::LegacyBatched | Self::SharedBatched),
+        }
+    }
+}
+// Each four-run cycle places each configuration once in every timing position.
+// Williams rows balance immediate predecessors; alternate prompts/cycles reverse them.
+fn variant_order(prompt_index: usize, run: usize) -> [BlockVariant; 4] {
+    const ROWS: [[usize; 4]; 4] = [[0, 1, 3, 2], [1, 2, 0, 3], [2, 3, 1, 0], [3, 0, 2, 1]];
+    let measured_index = run.saturating_sub(1);
+    let row = ROWS[(prompt_index + measured_index) % 4];
+    let mut order = row.map(|index| BLOCK_VARIANTS[index]);
+    if (prompt_index + measured_index / 4) % 2 == 1 {
+        order.reverse();
+    }
+    order
+}
 #[derive(Serialize)]
 struct Capture {
     prompt_name: String,
     run: usize,
     warmup: bool,
     mode: Mode,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    variant: Option<BlockVariant>,
+    block_kernel_mode: BlockKernelMode,
     prompt_tokens: usize,
     completion_tokens: usize,
     sustained_decode_tokens: usize,
@@ -130,6 +169,7 @@ fn record(
     wall: f64,
     before: Value,
     after: Value,
+    block_kernel_mode: BlockKernelMode,
 ) -> Result<Capture> {
     ensure!(
         output.completion_tokens == stats.token_ids.len()
@@ -155,6 +195,8 @@ fn record(
         run,
         warmup: run == 0,
         mode,
+        variant: None,
+        block_kernel_mode,
         prompt_tokens: output.prompt_tokens,
         completion_tokens: output.completion_tokens,
         sustained_decode_tokens: sustained,
@@ -172,9 +214,22 @@ fn record(
     })
 }
 fn summarize(captures: &[Capture], prompt: Option<&str>, mode: Mode) -> Value {
+    summarize_variant(captures, prompt, mode, None)
+}
+fn summarize_variant(
+    captures: &[Capture],
+    prompt: Option<&str>,
+    mode: Mode,
+    variant: Option<BlockVariant>,
+) -> Value {
     let rows: Vec<_> = captures
         .iter()
-        .filter(|c| !c.warmup && c.mode == mode && prompt.is_none_or(|name| c.prompt_name == name))
+        .filter(|c| {
+            !c.warmup
+                && c.mode == mode
+                && c.variant == variant
+                && prompt.is_none_or(|name| c.prompt_name == name)
+        })
         .collect();
     let completion: usize = rows.iter().map(|c| c.completion_tokens).sum();
     let sustained: usize = rows.iter().map(|c| c.sustained_decode_tokens).sum();
@@ -190,6 +245,10 @@ fn summarize(captures: &[Capture], prompt: Option<&str>, mode: Mode) -> Value {
         "sustained_decode_tokens": sustained,
         "total_decode_seconds": decode,
         "total_generation_wall_seconds": wall,
+        "total_target_seconds": rows.iter().map(|c| c.stats.target_seconds).sum::<f64>(),
+        "total_draft_seconds": rows.iter().map(|c| c.stats.draft_seconds).sum::<f64>(),
+        "total_verification_seconds": rows.iter().map(|c| c.stats.verification_seconds).sum::<f64>(),
+        "total_rollback_seconds": rows.iter().map(|c| c.stats.rollback_seconds).sum::<f64>(),
         "weighted_completion_tokens_per_decode_second": rate(completion, decode),
         "weighted_sustained_decode_tokens_per_second": rate(sustained, decode),
         "weighted_end_to_end_tokens_per_second": rate(completion, wall),
@@ -234,6 +293,176 @@ fn compare_greedy(first: &Capture, second: &Capture) -> Value {
     })
 }
 
+fn condition_summary(captures: &[Capture], variant: Option<BlockVariant>) -> Value {
+    let snapshots: Vec<_> = captures
+        .iter()
+        .filter(|capture| !capture.warmup && variant.is_none_or(|v| capture.variant == Some(v)))
+        .flat_map(|capture| [&capture.conditions_before, &capture.conditions_after])
+        .collect();
+    let low_power_true = snapshots
+        .iter()
+        .filter(|s| s["low_power_mode"] == true)
+        .count();
+    let low_power_false = snapshots
+        .iter()
+        .filter(|s| s["low_power_mode"] == false)
+        .count();
+    let mut thermal_states: Vec<_> = snapshots
+        .iter()
+        .filter_map(|s| s["thermal_state"].as_str())
+        .collect();
+    let known_thermal = thermal_states
+        .iter()
+        .filter(|&&state| matches!(state, "nominal" | "fair" | "serious" | "critical"))
+        .count();
+    let thermal_unknown = snapshots.len() - known_thermal;
+    thermal_states.sort_unstable();
+    thermal_states.dedup();
+    let low_power_unknown = snapshots.len() - low_power_true - low_power_false;
+    json!({
+        "measured_snapshot_count": snapshots.len(),
+        "low_power_mode_true_snapshots": low_power_true,
+        "low_power_mode_false_snapshots": low_power_false,
+        "low_power_mode_unknown_snapshots": low_power_unknown,
+        "low_power_mode_disabled_for_all_measured_snapshots": !snapshots.is_empty() && low_power_false == snapshots.len(),
+        "power_mode_constant_and_known": !snapshots.is_empty() && low_power_unknown == 0 && (low_power_true == 0 || low_power_false == 0),
+        "observed_thermal_states": thermal_states,
+        "thermal_state_unknown_snapshots": thermal_unknown,
+        "thermal_state_constant_and_known": thermal_unknown == 0 && thermal_states.len() == 1,
+        "note": "Measured captures only, before/after snapshots. Constant conditions do not establish equal clocks or rule out changes between snapshots. Low Power Mode being off does not prove AC power."
+    })
+}
+
+fn run_block_comparison(
+    options: &Options,
+    prompts: &[Prompt],
+    workload: Vec<Value>,
+    engine: &mut MtpChatEngine,
+    load_seconds: f64,
+) -> Result<()> {
+    ensure!(
+        engine.engine().kernel_mode() == "aligned",
+        "--compare-block-kernels requires the aligned nonreference GPU path"
+    );
+    let mut captures = Vec::new();
+    let mut comparisons = Vec::new();
+    for run in 0..=options.runs {
+        for (prompt_index, prompt) in prompts.iter().enumerate() {
+            let request = request(options, prompt);
+            let group_start = captures.len();
+            for variant in variant_order(prompt_index, run) {
+                engine.clear_cache();
+                engine.set_block_kernel_mode(variant.kernel_mode())?;
+                let actual_mode = engine.engine().block_kernel_mode();
+                ensure!(
+                    actual_mode == variant.kernel_mode(),
+                    "target block kernel selection differs from requested configuration"
+                );
+                eprintln!(
+                    "{} {:?} {} {}",
+                    prompt.name,
+                    variant,
+                    if run == 0 { "warmup" } else { "run" },
+                    run
+                );
+                let before = crate::system_status::snapshot();
+                let started = Instant::now();
+                let (output, stats) = engine.generate_with_stats(&request, &mut |_| true)?;
+                let wall = started.elapsed().as_secs_f64();
+                let after = crate::system_status::snapshot();
+                let mut row = record(
+                    prompt,
+                    run,
+                    Mode::Mtp,
+                    output,
+                    stats,
+                    wall,
+                    before,
+                    after,
+                    actual_mode,
+                )?;
+                row.variant = Some(variant);
+                eprintln!(
+                    "{}",
+                    json!({"prompt": prompt.name, "variant": variant, "run": run,
+                    "warmup": run == 0, "completion_tokens": row.completion_tokens,
+                    "sustained_decode_tokens_per_second": row.sustained_decode_tokens_per_second,
+                    "decode_seconds": row.decode_seconds})
+                );
+                captures.push(row);
+            }
+            let group = &captures[group_start..];
+            let baseline = group
+                .iter()
+                .find(|c| c.variant == Some(BlockVariant::LegacySequential))
+                .expect("schedule includes baseline");
+            for candidate in group.iter().filter(|c| c.variant != baseline.variant) {
+                let mut comparison = compare_greedy(candidate, baseline);
+                let object = comparison.as_object_mut().unwrap();
+                let candidate_token = object.remove("mtp_token_at_difference").unwrap();
+                let baseline_token = object.remove("target_token_at_difference").unwrap();
+                let speedup = object.remove("sustained_decode_speedup").unwrap();
+                object.insert("variant".into(), json!(candidate.variant));
+                object.insert("baseline_variant".into(), json!(baseline.variant));
+                object.insert("variant_token_at_difference".into(), candidate_token);
+                object.insert("baseline_token_at_difference".into(), baseline_token);
+                object.insert(
+                    "sustained_decode_speedup_vs_legacy_sequential".into(),
+                    speedup,
+                );
+                comparisons.push(comparison);
+            }
+        }
+    }
+    let agreement = !comparisons.is_empty()
+        && comparisons.iter().all(|c| {
+            c["token_ids_equal"] == true
+                && c["output_text_equal"] == true
+                && c["finish_reason_equal"] == true
+        });
+    let variants: Vec<_> = BLOCK_VARIANTS.iter().map(|&variant| {
+        let per_prompt: Vec<_> = prompts.iter().map(|prompt| json!({
+            "prompt_name": prompt.name,
+            "mtp": summarize_variant(&captures, Some(&prompt.name), Mode::Mtp, Some(variant)),
+        })).collect();
+        json!({
+            "variant": variant, "block_kernel_mode": variant.kernel_mode(),
+            "aggregate_mtp": summarize_variant(&captures, None, Mode::Mtp, Some(variant)),
+            "per_prompt": per_prompt, "system_conditions": condition_summary(&captures, Some(variant)),
+        })
+    }).collect();
+    let target = engine.engine();
+    let report = json!({
+        "kind": "mtp_block_kernel_comparison", "engine_version": env!("CARGO_PKG_VERSION"),
+        "device": target.device_name(), "model_path": options.model, "mtp_path": options.mtp,
+        "context_capacity": options.context, "block_size": options.block_size,
+        "max_tokens": options.max_tokens, "measured_runs_per_prompt_per_variant": options.runs,
+        "load_seconds": load_seconds, "allocated_bytes": target.allocated_bytes(),
+        "allocation_note": "Metal device-wide current allocation, including target, MTP adapter and scratch buffers, after all variants.",
+        "kernel_mode": target.kernel_mode(), "norm_mode": target.norm_mode(),
+        "attention_mode": target.attention_mode(), "metadata_mode": target.metadata_mode(),
+        "compacted_matrices": target.metadata_stats().0, "metadata_saved_bytes": target.metadata_stats().1,
+        "sampling": {"temperature": options.temperature, "top_p": options.top_p,
+            "top_k": options.top_k, "seed": options.seed, "thinking": options.thinking},
+        "baseline_variant": BlockVariant::LegacySequential,
+        "variant_greedy_agreement": agreement,
+        "independent_sequential_target_comparison_performed": false,
+        "goal_32_tps_confirmed": false,
+        "goal_confirmation_note": "Kernel diagnostic only. Variant equality compares MTP outputs against legacy-matmul/sequential-Delta MTP; it is not an independent sequential-target correctness comparison. No configuration is automatically promoted.",
+        "schedule": {
+            "iteration_order": "run, prompt, variant",
+            "variant_ids": BLOCK_VARIANTS,
+            "williams_rows": [[0,1,3,2],[1,2,0,3],[2,3,1,0],[3,0,2,1]],
+            "rule": "Run 0 is excluded warmup for every prompt and variant, before measured runs. For measured run r>=1 and zero-based prompt p, choose row (p+r-1)%4; reverse if (p+floor((r-1)/4))%2==1. Warmup uses the run-1 row. Four measured runs place each variant in every position once per prompt. Fewer runs are only partially balanced. Captures are in execution order."
+        },
+        "workload": workload, "variants": variants, "variant_comparisons": comparisons,
+        "system_conditions": condition_summary(&captures, None), "captures": captures,
+        "notes": "One loaded target and adapter shared by all configurations. Caches reset and target kernel selection switched outside timing before every generation; adapter kernels are unchanged. Each prompt/configuration has a separately recorded warmup excluded from its summary. Summaries never pool configurations. Verified output IDs determine throughput, EOS is honored, sustained decode excludes the first prefill-produced token. All post-prefill work is timed. Every candidate is compared with legacy/sequential MTP for identical prompt/run including warmup. The word sequential in a variant refers only to DeltaNet recurrence, not to ordinary target generation."
+    });
+    println!("{}", serde_json::to_string_pretty(&report)?);
+    Ok(())
+}
+
 pub fn run(options: Options) -> Result<()> {
     ensure!(
         options.runs > 0 && options.runs <= 100,
@@ -255,6 +484,24 @@ pub fn run(options: Options) -> Result<()> {
         options.top_p.is_finite() && options.top_p > 0. && options.top_p <= 1.,
         "top-p must be in (0,1]"
     );
+    if options.compare_block_kernels {
+        ensure!(
+            !options.compare,
+            "--compare-block-kernels cannot be used with --compare"
+        );
+        ensure!(
+            options.temperature == 0.,
+            "--compare-block-kernels requires --temperature 0"
+        );
+        ensure!(
+            !std::env::var("QWEN_METAL_REFERENCE").is_ok_and(|value| value == "1"),
+            "--compare-block-kernels requires QWEN_METAL_REFERENCE=0"
+        );
+        ensure!(
+            std::env::var("QWEN_METAL_GEMV").unwrap_or_else(|_| "aligned".into()) == "aligned",
+            "--compare-block-kernels requires QWEN_METAL_GEMV=aligned"
+        );
+    }
     let prompts = load_prompts(&options.prompts)?;
     let tokenizer = ChatTokenizer::load(&options.model)?;
     let mut workload = Vec::with_capacity(prompts.len());
@@ -293,6 +540,9 @@ pub fn run(options: Options) -> Result<()> {
         options.block_size,
     )?;
     let load_seconds = loaded.elapsed().as_secs_f64();
+    if options.compare_block_kernels {
+        return run_block_comparison(&options, &prompts, workload, &mut engine, load_seconds);
+    }
     let mut captures = Vec::new();
     let mut comparisons = Vec::new();
     for prompt in &prompts {
@@ -324,7 +574,17 @@ pub fn run(options: Options) -> Result<()> {
                 };
                 let wall = started.elapsed().as_secs_f64();
                 let after = crate::system_status::snapshot();
-                let row = record(prompt, run, mode, output, stats, wall, before, after)?;
+                let row = record(
+                    prompt,
+                    run,
+                    mode,
+                    output,
+                    stats,
+                    wall,
+                    before,
+                    after,
+                    engine.engine().block_kernel_mode(),
+                )?;
                 eprintln!(
                     "{}",
                     json!({"prompt": prompt.name, "mode": mode, "run": run,
@@ -375,6 +635,7 @@ pub fn run(options: Options) -> Result<()> {
         "load_seconds": load_seconds, "allocated_bytes": target.allocated_bytes(),
         "allocation_note": "Metal device-wide current allocation, including target, MTP adapter and scratch buffers.",
         "kernel_mode": target.kernel_mode(), "norm_mode": target.norm_mode(),
+        "block_kernel_mode": target.block_kernel_mode(),
         "attention_mode": target.attention_mode(), "metadata_mode": target.metadata_mode(),
         "compacted_matrices": target.metadata_stats().0, "metadata_saved_bytes": target.metadata_stats().1,
         "sampling": {"temperature": options.temperature, "top_p": options.top_p,
@@ -423,6 +684,7 @@ mod tests {
             seconds + 2.,
             Value::Null,
             Value::Null,
+            BlockKernelMode::default(),
         )
         .unwrap()
     }
@@ -441,6 +703,77 @@ mod tests {
         assert_eq!(summary["weighted_sustained_decode_tokens_per_second"], 4.);
         assert_eq!(summary["weighted_completion_tokens_per_decode_second"], 4.5);
         assert_eq!(summary["median_sustained_decode_tokens_per_second"], 4.);
+    }
+    #[test]
+    fn factorial_schedule_balances_positions_and_separates_configuration_summaries() {
+        for prompt_index in 0..5 {
+            for cycle in 0..2 {
+                for position in 0..4 {
+                    let mut seen = Vec::new();
+                    for run in cycle * 4 + 1..=cycle * 4 + 4 {
+                        let order = variant_order(prompt_index, run);
+                        for &variant in &BLOCK_VARIANTS {
+                            assert_eq!(order.iter().filter(|&&v| v == variant).count(), 1);
+                        }
+                        seen.push(order[position]);
+                    }
+                    for &variant in &BLOCK_VARIANTS {
+                        assert_eq!(seen.iter().filter(|&&v| v == variant).count(), 1);
+                    }
+                }
+            }
+        }
+        let mut rows = Vec::new();
+        for (index, variant) in BLOCK_VARIANTS.iter().enumerate() {
+            for (run, tokens, seconds) in [(0, 1000, 0.001), (1, 9, 1.), (2, 17, 3.)] {
+                let mut capture = row(Mode::Mtp, run, tokens, seconds * (index + 1) as f64);
+                capture.variant = Some(*variant);
+                capture.block_kernel_mode = variant.kernel_mode();
+                rows.push(capture);
+            }
+        }
+        rows.push(row(Mode::Mtp, 1, 1000, 0.001));
+        for (index, &variant) in BLOCK_VARIANTS.iter().enumerate() {
+            let summary = summarize_variant(&rows, Some("one"), Mode::Mtp, Some(variant));
+            assert_eq!(summary["measured_runs"], 2);
+            assert_eq!(summary["sustained_decode_tokens"], 24);
+            assert_eq!(
+                summary["weighted_sustained_decode_tokens_per_second"],
+                6. / (index + 1) as f64
+            );
+        }
+        assert_eq!(summarize(&rows, None, Mode::Mtp)["measured_runs"], 1);
+    }
+    #[test]
+    fn condition_summary_reports_power_and_thermal_changes_without_inventing_ac_state() {
+        let mut measured = row(Mode::Mtp, 1, 9, 1.);
+        measured.conditions_before = json!({"low_power_mode": false, "thermal_state": "nominal"});
+        measured.conditions_after = json!({"low_power_mode": false, "thermal_state": "fair"});
+        let mut warmup = row(Mode::Mtp, 0, 9, 1.);
+        warmup.conditions_before = json!({"low_power_mode": true, "thermal_state": "serious"});
+        let summary = condition_summary(&[warmup, measured], None);
+        assert_eq!(summary["measured_snapshot_count"], 2);
+        assert_eq!(
+            summary["low_power_mode_disabled_for_all_measured_snapshots"],
+            true
+        );
+        assert_eq!(summary["power_mode_constant_and_known"], true);
+        assert_eq!(summary["thermal_state_constant_and_known"], false);
+        assert_eq!(
+            summary["observed_thermal_states"],
+            json!(["fair", "nominal"])
+        );
+        let unknown = condition_summary(&[row(Mode::Mtp, 1, 9, 1.)], None);
+        assert_eq!(unknown["power_mode_constant_and_known"], false);
+        assert_eq!(unknown["thermal_state_constant_and_known"], false);
+        let mut literal_unknown = row(Mode::Mtp, 1, 9, 1.);
+        literal_unknown.conditions_before =
+            json!({"low_power_mode": false, "thermal_state": "unknown"});
+        literal_unknown.conditions_after = literal_unknown.conditions_before.clone();
+        let unknown = condition_summary(&[literal_unknown], None);
+        assert_eq!(unknown["thermal_state_constant_and_known"], false);
+        assert_eq!(unknown["thermal_state_unknown_snapshots"], 2);
+        assert_eq!(unknown["observed_thermal_states"], json!(["unknown"]));
     }
     #[test]
     fn first_token_only_is_zero_sustained_decode_and_invalid_times_are_not_rates() {
