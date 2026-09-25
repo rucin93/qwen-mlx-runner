@@ -16,15 +16,16 @@ use std::{cell::Cell, time::Instant};
 pub use timing::FrameTiming;
 
 /// Independently selectable target-block schedules for controlled GPU A/B runs.
-/// M5 comparison selects original matmul plus batched recurrence by default.
-/// Both alternatives remain explicit options. Single-token inference is unaffected.
+/// Measured Apple M5 Pro devices default to MLP R2 plus batched recurrence.
+/// Other devices default to Legacy. Explicit overrides remain available.
+/// Single-token inference is unaffected.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum BlockMatmulMode {
     #[default]
     Legacy,
     Shared,
-    /// Experimental R2/T64 only for B3 BF16 Q4/g64 MLP up/down shapes.
+    /// R2/T64 only for B3 BF16 Q4/g64 MLP up/down shapes, default on Apple M5 Pro.
     /// Other shapes, metadata formats and block widths use Legacy.
     MlpR2,
 }
@@ -45,6 +46,19 @@ impl Default for BlockKernelMode {
 }
 
 impl BlockKernelMode {
+    fn parse_for_device(
+        device_name: &str,
+        matmul: Option<&str>,
+        delta: Option<&str>,
+    ) -> Result<Self> {
+        // Match only the measured device; other M5 variants have no full-model evidence.
+        let default_matmul = match device_name {
+            "Apple M5 Pro" => "mlp-r2",
+            _ => "legacy",
+        };
+        Self::parse(matmul.unwrap_or(default_matmul), delta.unwrap_or("batched"))
+    }
+
     fn parse(matmul: &str, delta: &str) -> Result<Self> {
         let matmul = match matmul {
             "legacy" => BlockMatmulMode::Legacy,
@@ -62,17 +76,18 @@ impl BlockKernelMode {
         })
     }
 
-    fn from_env() -> Result<Self> {
-        let read = |name: &str, default: &str| -> Result<String> {
+    fn from_env(device_name: &str) -> Result<Self> {
+        let read = |name: &str| -> Result<Option<String>> {
             match std::env::var(name) {
-                Ok(value) => Ok(value),
-                Err(std::env::VarError::NotPresent) => Ok(default.into()),
+                Ok(value) => Ok(Some(value)),
+                Err(std::env::VarError::NotPresent) => Ok(None),
                 Err(error) => Err(error).with_context(|| format!("invalid {name}")),
             }
         };
-        Self::parse(
-            &read("QWEN_METAL_BLOCK_MATMUL", "legacy")?,
-            &read("QWEN_METAL_BLOCK_DELTA", "batched")?,
+        Self::parse_for_device(
+            device_name,
+            read("QWEN_METAL_BLOCK_MATMUL")?.as_deref(),
+            read("QWEN_METAL_BLOCK_DELTA")?.as_deref(),
         )
     }
 }
@@ -288,7 +303,6 @@ impl Gpu {
         )
     }
     pub fn new_with_variant(reference_kernels: bool, variant: &str) -> Result<Self> {
-        let block_kernel_mode = BlockKernelMode::from_env()?;
         ensure!(
             matches!(variant, "packed4" | "aligned" | "stream"),
             "QWEN_METAL_GEMV must be packed4, aligned or stream"
@@ -311,6 +325,7 @@ impl Gpu {
         );
         let device = Device::system_default()
             .context("No Metal GPU available; this engine requires Apple Silicon")?;
+        let block_kernel_mode = BlockKernelMode::from_env(device.name())?;
         ensure!(
             device.has_unified_memory(),
             "Only unified-memory Apple Silicon GPUs are supported"
@@ -1281,6 +1296,76 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
 mod tests {
     use super::*;
     #[test]
+    fn block_kernel_device_defaults_are_limited_to_measured_m5_pro() -> Result<()> {
+        for (device_name, expected) in [
+            ("Apple M5 Pro", BlockMatmulMode::MlpR2),
+            ("Apple M5", BlockMatmulMode::Legacy),
+            ("Apple M5 Max", BlockMatmulMode::Legacy),
+            ("Apple M1", BlockMatmulMode::Legacy),
+            ("Apple M1 Pro", BlockMatmulMode::Legacy),
+            ("Apple M4 Pro", BlockMatmulMode::Legacy),
+            ("Apple M5 Pro Max", BlockMatmulMode::Legacy),
+            ("apple m5 pro", BlockMatmulMode::Legacy),
+            ("Apple M5 Pro ", BlockMatmulMode::Legacy),
+            ("", BlockMatmulMode::Legacy),
+        ] {
+            assert_eq!(
+                BlockKernelMode::parse_for_device(device_name, None, None)?,
+                BlockKernelMode {
+                    matmul: expected,
+                    batched_delta: true,
+                },
+                "unexpected default for {device_name:?}"
+            );
+        }
+        assert_eq!(BlockKernelMode::default().matmul, BlockMatmulMode::Legacy);
+        Ok(())
+    }
+
+    #[test]
+    fn block_kernel_explicit_modes_override_device_defaults() -> Result<()> {
+        for device_name in ["Apple M5 Pro", "Apple M1"] {
+            for (matmul, expected) in [
+                ("legacy", BlockMatmulMode::Legacy),
+                ("shared", BlockMatmulMode::Shared),
+                ("mlp-r2", BlockMatmulMode::MlpR2),
+            ] {
+                for (delta, batched_delta) in [("sequential", false), ("batched", true)] {
+                    assert_eq!(
+                        BlockKernelMode::parse_for_device(device_name, Some(matmul), Some(delta))?,
+                        BlockKernelMode {
+                            matmul: expected,
+                            batched_delta,
+                        }
+                    );
+                }
+            }
+        }
+        assert_eq!(
+            BlockKernelMode::parse_for_device("Apple M5 Pro", None, Some("sequential"))?,
+            BlockKernelMode {
+                matmul: BlockMatmulMode::MlpR2,
+                batched_delta: false,
+            }
+        );
+        Ok(())
+    }
+
+    #[test]
+    fn block_kernel_device_defaults_reject_invalid_overrides() {
+        for device_name in ["Apple M5 Pro", "Apple M1"] {
+            for invalid in ["", "auto", "LEGACY", "legacy ", "mlp_r2", "MLP-R2"] {
+                assert!(
+                    BlockKernelMode::parse_for_device(device_name, Some(invalid), None).is_err()
+                );
+                assert!(
+                    BlockKernelMode::parse_for_device(device_name, None, Some(invalid)).is_err()
+                );
+            }
+        }
+    }
+
+    #[test]
     fn block_kernel_modes_are_independent_and_reject_unknown_values() -> Result<()> {
         assert_eq!(
             BlockKernelMode::parse("legacy", "batched")?,
@@ -1345,7 +1430,7 @@ mod tests {
     #[test]
     fn mlp_r2_selection_is_limited_to_measured_shapes_and_format() {
         // The vocabulary head, dense weights, other quantizations and remainder
-        // blocks must stay on the old kernels, even when the opt-in is active.
+        // blocks must stay on the old kernels, even when MLP R2 is selected.
         for (rows, cols) in [
             (17408, 5120),
             (5120, 17408),

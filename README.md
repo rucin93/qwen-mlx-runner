@@ -23,41 +23,34 @@ Target-machine throughput is documented through user-supplied M5 Pro results;
 local GPU verification uses an M1. Synthetic tests and microbenchmarks do not
 establish trained-model quality or target throughput.
 
-The earlier v0.5 user-reported M5 Pro / 48 GB result was **16.13 decode tokens/s on
-external power**, over 128 generated steps after warmup. It exceeds 15 tokens/s
-and is 10.75x the original approximately 1.5 tokens/s (11.11x the originally
-reported measured run of 1.45242). This is **one measured run with timing enabled**,
-not yet a repeated three-run uninstrumented median. See the
-[M5 result and reproducible configuration](docs/m5-pro.md).
+The user's full-model 0.6.4 M5 Pro comparison measures **28.69 sustained tokens/s
+with selective MLP R2, versus 27.81 with legacy MTP (+3.16%)** on five mixed
+prompts. Each prompt has three measured runs; R2 improves every paired run and
+matches ordinary target generation's token IDs, text and finish reason,
+including warmups. **The mixed-use 32 tokens/s goal is not reached:** R2 prompt
+medians are 26.18 (explanation), 33.95 (code), 29.29 (analysis), 29.36 (rewrite)
+and 26.03 (planning) tokens/s; only code exceeds 32.
+See the [audited full-model result and remaining budget](docs/m5-selective-r2.md).
 
-The selected configuration is aligned GEMV, parallel RMS, exact BF16 metadata
-and serial attention values. The user clarified that external power was
-connected before the latest run. The approximately 2x jump from the previous
-BF16 measurement cannot be attributed to a new kernel in v0.5; its active shader
-path is unchanged. Power conditions are the leading explanation, pending a
-controlled comparison on the same build.
+Native MTP verifies one target token plus two proposals from the separate
+239 MB adapter. The measured configuration uses aligned GEMV, parallel RMS,
+exact BF16 metadata and serial attention values. The **0.6.5 default policy
+selects selective R2 only for the exact Metal device name `Apple M5 Pro`**;
+other devices retain legacy matrices, and batched DeltaNet remains the default.
+R2 applies only to the two eligible B3 BF16 Q4/group64 MLP shapes; the vocabulary
+head and other shapes/formats/block widths retain their existing dispatch.
+Set `QWEN_METAL_BLOCK_MATMUL=legacy` for an explicit fallback.
 
-An **experimental native MTP path** verifies blocks of up to four positions with
-shared weight reads. The default is one target token plus two proposals from
-the separate 239 MB MTP adapter. The user's trained-model M5 measurement is
-**26.77 sustained tokens/s versus 16.63 sequentially (+61%)**, with matching
-greedy traces across five mixed prompts. **The mixed-use 32 tokens/s goal is
-not reached.** See the [audited result](docs/m5-mtp-v0.6.md) and
-[setup, mixed-prompt benchmark and limitations](docs/native-mtp.md).
+Version 0.6.5 also includes a standalone [FP32 TensorOps experiment](docs/tensorops-probe.md).
+It is excluded from inference: primitive correctness and target-device timing
+must precede any trained-model integration.
 
-The subsequent 0.6.1 M5 report regressed to **23.34 sustained tokens/s** with
-the same output tokens. The 0.6.2 four-configuration comparison isolates the
-regression to shared matrix unpacking. **0.6.3 selects the measured winning
-combination: legacy matrix + batched DeltaNet.** On the two diagnostic prompts
-it measures 28.53 sustained tokens/s, with medians of 25.59 for Polish explanation
-and 32.98 for code. This is a narrower workload than the earlier five-prompt
-result. See the [controlled comparison and remaining budget](docs/m5-kernel-comparison.md).
-
-The M5 row-tile sweep rejects the R8 candidate that had won on M1. It supports
-a narrower R2 candidate for B3 BF16 MLP matrices. Version 0.6.4 adds this as an
-**opt-in** path and a one-load comparison against both legacy MTP and ordinary
-target generation; the normal default remains legacy/batched. Full-model M5
-performance of this candidate is pending. See the [selective R2 results and command](docs/m5-selective-r2.md).
+Earlier evidence includes the [16.13 tokens/s ordinary-target measurement](docs/m5-pro.md),
+the [26.77 tokens/s first MTP result](docs/m5-mtp-v0.6.md), and the
+[controlled recovery from the 0.6.1 shared-matrix regression](docs/m5-kernel-comparison.md).
+The latest same-session R2/legacy comparison isolates the R2 gain; differences
+from historical runs include other changes and measurement conditions. See
+[MTP setup and limitations](docs/native-mtp.md) before comparing chat workloads.
 
 Earlier results and implementation evidence remain in the
 [first iteration](docs/performance-2026-09-25.md),
@@ -145,22 +138,27 @@ output correctness.
 
 ## Local chat server
 
-For the M5 Pro configuration observed at 16.13 tokens/s, connect external power
-and use:
+For the measured M5 Pro MTP configuration, download the companion adapter as
+described in [MTP setup](docs/native-mtp.md), connect external power, disable
+Low Power Mode, and use:
 
 ```sh
 QWEN_METAL_REFERENCE=0 QWEN_METAL_GEMV=aligned \
 QWEN_METAL_NORM=parallel QWEN_METAL_METADATA=bf16 QWEN_METAL_ATTN_VALUES=serial \
   ./target/release/qwen-metal serve \
   --model models/Qwen3.8-27B-4bit \
+  --mtp models/Qwen3.8-27B-MTP-4bit --mtp-block-size 3 \
   --context 8192 \
   --listen 127.0.0.1:8080
 ```
 
-The measurement is for the fixed-token benchmark. Chat latency also depends on
-prompt length, sampling settings and prefix reuse; model quality remains subject
-to the validation limit above. Global defaults remain conservative for other
-Apple Silicon machines.
+The 28.69 tokens/s result measures greedy decode over five prompts, not HTTP
+end-to-end latency. Chat speed also depends on prompt length and sampling.
+MTP resets caches per request; omit `--mtp` and `--mtp-block-size` to use ordinary
+generation with recent-prefix reuse. Version 0.6.5 chooses selective R2 on
+`Apple M5 Pro`; for the same selection on 0.6.4, add
+`QWEN_METAL_BLOCK_MATMUL=mlp-r2`. Model quality remains subject to the validation
+limit above.
 
 The served model ID is the final component of the model directory path. Confirm
 it with `GET /v1/models`.

@@ -2,26 +2,30 @@
 
 The requested target is approximately 32 generated tokens/s for one mixed-use
 chat on M5 Pro / 48 GB, on external power, using the existing Qwen3.8-27B Q4
-checkpoint and this project's own Rust + Metal runtime. The observed baseline
-remains 16.1308 tokens/s; this document does not claim the new target is achieved.
+checkpoint and this project's own Rust + Metal runtime. The initial ordinary-
+target baseline was 16.1308 tokens/s; the mixed-use 32 tokens/s goal remains unmet.
 
-Follow-up: the user's 0.6.0 block-3 report now establishes 26.7659 sustained
-tokens/s versus 16.6282 for its paired sequential baseline, with matching greedy
-traces. [The audited budget](m5-mtp-v0.6.md) identifies target execution as 86.78%
-of decode time. Shared Q4 unpacking for B2/B3 and register-resident multi-step
-DeltaNet improved isolated M1 tests, but their combined 0.6.1 release regressed
-to 23.3430 sustained tokens/s on M5. The [controlled follow-up](m5-kernel-comparison.md)
-isolates the loss to shared matrix unpacking. Legacy matrices plus batched
-DeltaNet win that two-prompt comparison at 28.5274 sustained tokens/s and become
-the 0.6.3 default. The memory saving from omitting unused final rollback
-snapshots is retained. The weaker Polish prompt still needs approximately 24%
-less target execution time to reach 32 at unchanged acceptance and other costs.
-The next M5 sweep rejects the R8 row tile that won on M1, while R2/T64 improves
-the two MLP shapes by about 1.08× and 1.18×. Version 0.6.4
-[integrates R2 selectively for a controlled full-model comparison](m5-selective-r2.md),
-leaving the vocabulary head, other batches/formats, and default path unchanged.
-The later block-4 report has Low Power Mode enabled and cannot be compared
-directly to the block-3 result with it disabled.
+The user's [audited 0.6.4 full-model comparison](m5-selective-r2.md) measures
+**28.6868 sustained tokens/s for selective R2 versus 27.8079 for legacy MTP
+(+3.1608%)** over five prompts. All 15 measured R2/legacy pairs improve, with
+matching ordinary-target IDs, text and finish reasons. Six complete nominal
+triples retain a +2.8926% gain; the full run transitions from nominal to fair.
+Only code reaches a 32 tokens/s median. Explanation and planning remain near
+26 tokens/s; analysis and rewrite are near 29.
+
+Version 0.6.5 selects the measured R2 route by default only for the exact Metal
+device name `Apple M5 Pro`, with an explicit `QWEN_METAL_BLOCK_MATMUL=legacy`
+override and legacy defaults elsewhere. Its eligible B3 BF16 Q4/group64 MLP
+shapes, vocabulary-head fallback and batched DeltaNet are unchanged. The earlier
+[shared-matrix regression](m5-kernel-comparison.md) and M5's rejection of the
+M1-winning R8 tile are reasons to keep this choice device-specific.
+
+Target GPU work still occupies **84.65%** of R2 decode. At unchanged acceptance
+and other costs, reaching 32 requires approximately **22% less target GPU time
+for explanation/planning** and 10% less for analysis/rewrite. CPU encoding and
+commit account for about 0.67% of decode and cannot close that gap alone. The
+next experiment must target GPU cost and establish a full-model benefit; the
+current R2 result does not establish 32 tokens/s.
 
 ## Evidence and approach
 
@@ -89,10 +93,10 @@ prompts; speculative acceptance is workload dependent.
 These sources document formats and algorithms. Implementation remains original
 Rust/Metal code; their inference runtimes are not linked or invoked.
 
-## Next architectural experiment if the scalar gap remains
+## Next architectural experiment
 
-The selective R2 timing budget is too small by itself to justify promising 32
-tokens/s on the weaker prompt. A subsequent bounded experiment should evaluate
+The measured selective R2 gain leaves a substantial gap on the weaker prompts.
+A subsequent bounded experiment should evaluate
 Metal 4 TensorOps within our own shaders. Apple recommends this API for custom
 matrix workloads targeting M5's GPU Neural Accelerators, while noting that
 skinny decode matrices can remain bandwidth limited.
@@ -101,7 +105,8 @@ skinny decode matrices can remain bandwidth limited.
 Apple also documents custom quantization and cooperative tensor inputs.
 [Metal tensor operations](https://developer.apple.com/videos/play/wwdc2026/330/).
 This offers a route for keeping the existing packed checkpoint and custom
-dequantization inside the Rust/Metal engine. It is not implemented in 0.6.4.
+dequantization inside the Rust/Metal engine. Version 0.6.5 adds an isolated
+[FP32 TensorOps probe](tensorops-probe.md), outside the inference runtime.
 FP32 operand support, successful compilation on the target OS/SDK, numerical
 error and actual B3 speed must be evaluated separately. A matrix primitive may
 change reduction order even with FP32 inputs; it cannot inherit the scalar

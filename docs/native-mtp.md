@@ -1,19 +1,23 @@
 # Native MTP: candidate toward 32 tokens/s
 
-The user-supplied M5 Pro 0.6.0 benchmark measures **26.77 sustained tokens/s with
-MTP**, versus **16.63** for sequential generation on the same target. Complete
-greedy traces agree across all five prompts. **The mixed-use 32 tokens/s goal
-is not reached yet.** See the [audited result and time budget](m5-mtp-v0.6.md).
-The [0.6.1 follow-up](performance-v0.6.1.md) regressed to 23.34 sustained tokens/s
-on the same M5 workload despite isolated M1 improvements. The subsequent
-[same-model comparison](m5-kernel-comparison.md) isolates the regression to
-shared matrix unpacking. Version 0.6.3 defaults to legacy matrices and batched
-DeltaNet: the combination measured at 28.53 sustained tokens/s over the two
-diagnostic prompts. The full five-prompt result for that combination is pending.
-Version 0.6.4 also offers the opt-in `QWEN_METAL_BLOCK_MATMUL=mlp-r2` path,
-restricted to the two B3 BF16 MLP shapes supported by the M5 microbenchmark.
-Use [`mtp-bench --compare-mlp-r2`](m5-selective-r2.md) to compare it with both
-legacy MTP and ordinary target generation on one loaded model.
+The user-supplied M5 Pro 0.6.4 full-model comparison measures **28.69 sustained
+tokens/s with selective MLP R2, versus 27.81 with legacy MTP (+3.16%)** across
+five prompts and three measured runs per variant. All output IDs, text and
+finish reasons match ordinary generation, including warmups and the earlier
+0.6.0 traces. **The mixed-use 32 tokens/s goal is not reached:** R2 prompt
+medians are 26.18 (explanation), 33.95 (code), 29.29 (analysis), 29.36 (rewrite)
+and 26.03 (planning) tokens/s; only code meets the target.
+See the [audited result, thermal controls and budget](m5-selective-r2.md).
+
+The 0.6.5 default policy selects selective R2 for the exact Metal device name
+`Apple M5 Pro`, retaining legacy matrices on other devices and batched DeltaNet
+by default. The eligible route is unchanged: B3 aligned affine Q4/group64 with
+BF16 metadata, restricted to MLP shapes 17408 × 5120 and 5120 × 17408. Other
+shapes, formats and block widths retain their existing dispatch. Explicit
+`QWEN_METAL_BLOCK_MATMUL=legacy` restores legacy matrices;
+`QWEN_METAL_BLOCK_MATMUL=mlp-r2` opts in on 0.6.4 or other devices.
+Use [`mtp-bench --compare-mlp-r2`](m5-selective-r2.md) for the three-variant,
+one-load comparison.
 
 Every matrix pass in the measured target graph streams approximately 14.41 GB
 of Q4 weights and BF16 metadata. The [Apple M5 Pro specification](https://www.apple.com/macbook-pro/specs/)
@@ -103,6 +107,9 @@ a guarantee for other prompts. Stochastic reports expose throughput and
 acceptance without using greedy trace equality as a goal gate.
 
 ## Start the headless server
+
+This uses the measured block-3 configuration. Version 0.6.5 selects R2 on
+`Apple M5 Pro`; on 0.6.4, add `QWEN_METAL_BLOCK_MATMUL=mlp-r2` for that route.
 
 ```sh
 QWEN_METAL_REFERENCE=0 QWEN_METAL_GEMV=aligned \
