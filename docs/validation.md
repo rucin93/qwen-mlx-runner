@@ -80,3 +80,31 @@ a demonstrated GPU fencing speedup.
 [Performance evidence](performance-2026-09-25.md) records the final same-binary
 release timings and their limits. Full trained-checkpoint accuracy and the
 requested M5 Pro 10× speedup still need target-machine validation.
+
+## v0.2 profiling and normalization validation
+
+The target user subsequently supplied a three-run M5 Pro median of 8.160957654
+decode tokens/s; the complete reported record is retained in
+`docs/benchmarks/m5-pro-aligned-user.json`. It is user-provided evidence, not
+a local M5 execution. The absolute 15 tokens/s target is still unmet in the
+available full-model measurements.
+
+The final full test command for v0.2 was
+`cargo test --offline --locked -- --include-ignored` with actual Metal access:
+41 library tests, four inference tests, one normalization test and one
+quantized-matrix test passed; zero failed or ignored (47 total). Matrix coverage
+now includes 360 dispatch/oracle cases across aligned, packed4, stream, and
+reference modes. New RMS coverage checks zero/nonzero inputs, large/odd lengths
+and alias fallback. Profiling compares every output logit with independent
+goldens over five steps and checks sample reset between tokens.
+
+Independent review found a clock-unit error in the initial profiler. Raw GPU
+counter ticks are now calibrated using paired CPU/GPU timestamps; tests cover
+non-unit ratios, invalid samples/spans, large timestamps and overflow. Review
+of the correction found no remaining actionable issue. Whole-command Metal
+timestamps were already in seconds and did not need that conversion.
+
+The optional stream path also passed all four inference tests in a separate
+`QWEN_METAL_GEMV=stream` run. The comparator was checked for below/above absolute
+token-rate targets, combined constraints, and invalid rates. These checks do
+not establish trained-model quality or a v0.2 M5 throughput improvement.

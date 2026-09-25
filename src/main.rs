@@ -84,6 +84,20 @@ enum Command {
         #[arg(long, default_value_t = 3)]
         steps: usize,
     },
+    /// Diagnostic GPU timestamps for one token; extra encoders affect scheduling.
+    Profile {
+        /// Omit to use the synthetic reused-weight graph with zero history.
+        #[arg(long)]
+        model: Option<PathBuf>,
+        #[arg(long, default_value_t = 2048)]
+        context: usize,
+        /// Real fixed-token prefill with --model; zeroed historical KV otherwise.
+        #[arg(long, default_value_t = 512)]
+        history: usize,
+        /// Compare serial and parallel RMS using one load and one prefill.
+        #[arg(long)]
+        compare_norm: bool,
+    },
     /// Measure a packed matrix-vector kernel, not LLM tokens/s.
     KernelBench {
         #[arg(long, default_value_t = 17408)]
@@ -105,6 +119,53 @@ enum Command {
 fn main() -> Result<()> {
     let cli = Cli::parse();
     match cli.command {
+        Command::Profile {
+            model,
+            context,
+            history,
+            compare_norm,
+        } => {
+            ensure!(
+                history
+                    .checked_add(if compare_norm { 6 } else { 3 })
+                    .is_some_and(|n| n <= context),
+                "history plus warmup and two diagnostic steps must fit context"
+            );
+            let mut engine = if let Some(path) = &model {
+                let mut engine = Engine::load(path, context)?;
+                for i in 0..history {
+                    let token = ((i * 17 + 3) % engine.config().vocab_size) as u32;
+                    engine.prefill_token(token, false)?;
+                }
+                engine
+            } else {
+                Engine::synthetic_qwen27b(context, history)?
+            };
+            let mut captures = Vec::new();
+            if compare_norm {
+                ensure!(
+                    engine.kernel_mode() != "reference",
+                    "--compare-norm requires QWEN_METAL_REFERENCE=0"
+                );
+                for parallel in [false, true] {
+                    engine.set_parallel_norm(parallel);
+                    captures.push(profile_step(&mut engine)?);
+                }
+            } else {
+                captures.push(profile_step(&mut engine)?);
+            }
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&json!({
+                    "kind":"gpu_operation_profile", "device":engine.device_name(),
+                    "engine_version":env!("CARGO_PKG_VERSION"), "model_path":model,
+                    "context_capacity":context, "compare_norm":compare_norm,
+                    "synthetic_reused_weights":model.is_none(),
+                    "captures":captures,
+                    "note":"Diagnostic only: one encoder per dispatch changes scheduling; not normal model throughput. Without --model, reused synthetic weights and zeroed historical KV."
+                }))?
+            );
+        }
         Command::SyntheticBench {
             context,
             history,
@@ -134,7 +195,7 @@ fn main() -> Result<()> {
                 "device":engine.device_name(),"allocated_bytes":engine.allocated_bytes(),"load_seconds":load_seconds,
                 "context":context,"zero_history":history,"steps":steps,"seconds":seconds,"milliseconds_per_step":seconds*1000./steps as f64,
                 "reference":std::env::var("QWEN_METAL_REFERENCE").is_ok_and(|v|v=="1"),
-                "kernel_mode":engine.kernel_mode(),
+                "kernel_mode":engine.kernel_mode(), "norm_mode":engine.norm_mode(),
                 "note":"NOT REAL QWEN THROUGHPUT. Shares immutable weights across 64 layers; zero historical KV, one warmup step; lower residency than real checkpoint."})
                 )?
             );
@@ -277,7 +338,7 @@ fn main() -> Result<()> {
             println!(
                 "{}",
                 serde_json::to_string_pretty(&json!({"kind":"model_fixed_token_benchmark",
-                "engine_version":env!("CARGO_PKG_VERSION"),"model_path":model,"device":engine.device_name(),"kernel_mode":engine.kernel_mode(),
+                "engine_version":env!("CARGO_PKG_VERSION"),"model_path":model,"device":engine.device_name(),"kernel_mode":engine.kernel_mode(),"norm_mode":engine.norm_mode(),
                 "allocated_bytes":engine.allocated_bytes(),"context_capacity":context,"prompt_tokens":prompt_tokens,
                 "generated_steps":generate_tokens,"load_seconds":load_seconds,"median_decode_tokens_per_second":median,
                 "notes":"one unreported warmup; no prompt cache reuse; greedy; fixed tokens; EOS ignored; not a chat quality evaluation",
@@ -357,4 +418,31 @@ fn main() -> Result<()> {
         }
     }
     Ok(())
+}
+
+fn profile_step(engine: &mut Engine) -> Result<serde_json::Value> {
+    engine.disable_profiling();
+    let token = (3 % engine.config().vocab_size) as u32;
+    engine.forward(token)?;
+    let normal_history = engine.position();
+    let normal_start = Instant::now();
+    engine.forward(token)?;
+    let normal_wall_seconds = normal_start.elapsed().as_secs_f64();
+    let normal_timing = engine
+        .last_frame_timing()
+        .context("Command GPU timestamps are unavailable")?;
+    engine.enable_profiling()?;
+    let profile_history = engine.position();
+    let start = Instant::now();
+    engine.forward(token)?;
+    let seconds = start.elapsed().as_secs_f64();
+    let rows = engine.profile_report()?;
+    Ok(json!({
+        "kernel_mode":engine.kernel_mode(), "norm_mode":engine.norm_mode(),
+        "normal_step_history":normal_history, "profiled_step_history":profile_history,
+        "wall_seconds":seconds, "normal_wall_seconds":normal_wall_seconds,
+        "normal_timing":normal_timing, "profiled_timing":engine.last_frame_timing(),
+        "summed_kernel_seconds":rows.iter().map(|r| r.gpu_seconds).sum::<f64>(),
+        "operations":rows
+    }))
 }

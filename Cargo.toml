@@ -1,6 +1,6 @@
 [package]
 name = "qwen-metal"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2024"
 description = "Independent Rust and Metal inference for dense Qwen3.5/3.8 text models"
 license = "MIT"
@@ -40,3 +40,7 @@ incremental = false
 [profile.test]
 debug = 0
 incremental = false
+
+[lints.rust]
+# objc 0.2's selector macro references this legacy dependency feature.
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(feature, values("cargo-clippy"))'] }

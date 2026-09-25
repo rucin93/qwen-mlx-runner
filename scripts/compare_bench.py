@@ -4,6 +4,7 @@
 Usage:
     python3 scripts/compare_bench.py baseline.json candidate.json
     python3 scripts/compare_bench.py baseline.json candidate.json --require-speedup 10
+    python3 scripts/compare_bench.py baseline.json candidate.json --require-tps 15
 
 Only `model_fixed_token_benchmark` results are accepted. The command reads
 files; it never runs the model or includes a warmup record in the medians.
@@ -112,11 +113,15 @@ def main():
         metavar="RATIO",
         help="exit 1 when the decode speedup is below this positive ratio",
     )
+    parser.add_argument("--require-tps", type=float, metavar="TOKENS_PER_SECOND",
+                        help="exit 1 when candidate median decode is below this positive rate")
     args = parser.parse_args()
     if args.require_speedup is not None and (
         not math.isfinite(args.require_speedup) or args.require_speedup <= 0
     ):
         parser.error("--require-speedup must be finite and positive")
+    if args.require_tps is not None and (not math.isfinite(args.require_tps) or args.require_tps <= 0):
+        parser.error("--require-tps must be finite and positive")
     try:
         baseline, baseline_decode, baseline_prefill = read_benchmark(args.baseline)
         candidate, candidate_decode, candidate_prefill = read_benchmark(args.candidate)
@@ -154,12 +159,16 @@ def main():
         f"Median prefill per measured run: {baseline_prefill:.3f} -> "
         f"{candidate_prefill:.3f} s (baseline/candidate {baseline_prefill / candidate_prefill:.3f}x)"
     )
-    print(f">=10x decode target: {'PASS' if ratio >= 10 else 'FAIL'}")
+    passed = True
     if args.require_speedup is not None:
-        passed = ratio >= args.require_speedup
-        print(f"Required {args.require_speedup:g}x decode speedup: {'PASS' if passed else 'FAIL'}")
-        return 0 if passed else 1
-    return 0
+        speedup_passed = ratio >= args.require_speedup
+        print(f"Required {args.require_speedup:g}x decode speedup: {'PASS' if speedup_passed else 'FAIL'}")
+        passed = passed and speedup_passed
+    if args.require_tps is not None:
+        tps_passed = candidate_decode >= args.require_tps
+        print(f"Required {args.require_tps:g} tokens/s: {'PASS' if tps_passed else 'FAIL'}")
+        passed = passed and tps_passed
+    return 0 if passed else 1
 
 
 if __name__ == "__main__":

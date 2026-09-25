@@ -1,10 +1,16 @@
 //! Original Metal compute backend; see kernels/qwen.metal for the dispatch ABI.
+mod profile;
+mod timing;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use metal::{
     Buffer, BufferRef, CommandBufferRef, CommandQueue, ComputeCommandEncoderRef,
     ComputePipelineState, Device, MTLCommandBufferStatus, MTLResourceOptions, MTLSize, ResourceRef,
 };
+pub use profile::ProfileRow;
+use profile::StageProfiler;
 use std::collections::HashMap;
+use std::{cell::Cell, time::Instant};
+pub use timing::FrameTiming;
 
 pub struct Gpu {
     pub device: Device,
@@ -12,6 +18,55 @@ pub struct Gpu {
     pipelines: HashMap<&'static str, ComputePipelineState>,
     reference_kernels: bool,
     matvec_variant: String,
+    parallel_norm: bool,
+    profiler: Option<StageProfiler>,
+    frame_started: Cell<Option<Instant>>,
+    frame_timing: Cell<Option<FrameTiming>>,
+}
+
+/// Normal inference has one serial encoder per token. Diagnostic profiling
+/// instead samples one encoder per operation within the same command buffer.
+pub struct DispatchEncoder<'a> {
+    gpu: &'a Gpu,
+    command: &'a CommandBufferRef,
+    encoder: Option<&'a ComputeCommandEncoderRef>,
+}
+impl DispatchEncoder<'_> {
+    pub fn encode(
+        &self,
+        name: &str,
+        buffers: &[&BufferRef],
+        params: &[u32],
+        threads: usize,
+        group_size: usize,
+    ) -> Result<()> {
+        if let Some(profiler) = &self.gpu.profiler {
+            let e = profiler.encoder(self.command, name, params)?;
+            let result = self
+                .gpu
+                .encode(e, name, buffers, params, threads, group_size);
+            e.end_encoding();
+            result
+        } else {
+            self.gpu.encode(
+                self.encoder.unwrap(),
+                name,
+                buffers,
+                params,
+                threads,
+                group_size,
+            )
+        }
+    }
+    pub fn end_encoding(self) -> Result<()> {
+        if let Some(e) = self.encoder {
+            e.end_encoding();
+        }
+        if let Some(profiler) = &self.gpu.profiler {
+            profiler.resolve(self.command)?;
+        }
+        Ok(())
+    }
 }
 const KERNELS: &[&str] = &[
     "matvec_f16",
@@ -19,6 +74,7 @@ const KERNELS: &[&str] = &[
     "embed_f16",
     "embed_affine",
     "rms_norm",
+    "rms_norm_parallel",
     "add",
     "swiglu",
     "conv_silu",
@@ -41,6 +97,9 @@ const KERNELS: &[&str] = &[
     "matvec_q4_g32_aligned",
     "matvec_q4_g64_aligned",
     "matvec_q4_g128_aligned",
+    "matvec_q4_g32_stream",
+    "matvec_q4_g64_stream",
+    "matvec_q4_g128_stream",
 ];
 impl Gpu {
     pub fn new() -> Result<Self> {
@@ -55,8 +114,13 @@ impl Gpu {
     }
     pub fn new_with_variant(reference_kernels: bool, variant: &str) -> Result<Self> {
         ensure!(
-            matches!(variant, "packed4" | "aligned"),
-            "QWEN_METAL_GEMV must be packed4 or aligned"
+            matches!(variant, "packed4" | "aligned" | "stream"),
+            "QWEN_METAL_GEMV must be packed4, aligned or stream"
+        );
+        let norm_mode = std::env::var("QWEN_METAL_NORM").unwrap_or_else(|_| "serial".into());
+        ensure!(
+            matches!(norm_mode.as_str(), "parallel" | "serial"),
+            "QWEN_METAL_NORM must be parallel or serial"
         );
         let device = Device::system_default()
             .context("No Metal GPU available; this engine requires Apple Silicon")?;
@@ -72,7 +136,14 @@ impl Gpu {
         // Numerical baseline: avoid the relaxed approximations of fast math.
         options.set_fast_math_enabled(false);
         let library = device
-            .new_library_with_source(include_str!("../kernels/qwen.metal"), &options)
+            .new_library_with_source(
+                concat!(
+                    include_str!("../kernels/qwen.metal"),
+                    "\n",
+                    include_str!("../kernels/norm_fast.metal")
+                ),
+                &options,
+            )
             .map_err(|e| anyhow!("Metal shader compilation failed: {e}"))?;
         let mat_options = metal::CompileOptions::new();
         mat_options.set_fast_math_enabled(true);
@@ -81,7 +152,9 @@ impl Gpu {
                 concat!(
                     include_str!("../kernels/matvec_fast.metal"),
                     "\n",
-                    include_str!("../kernels/matvec_aligned.metal")
+                    include_str!("../kernels/matvec_aligned.metal"),
+                    "\n",
+                    include_str!("../kernels/matvec_stream.metal")
                 ),
                 &mat_options,
             )
@@ -99,11 +172,16 @@ impl Gpu {
             descriptor.set_compute_function(Some(&function));
             descriptor.set_thread_group_size_is_multiple_of_thread_execution_width(true);
             if name.starts_with("matvec_q") {
-                descriptor.set_max_total_threads_per_threadgroup(if name.ends_with("_aligned") {
-                    64
-                } else {
-                    128
-                });
+                descriptor.set_max_total_threads_per_threadgroup(
+                    if name.ends_with("_aligned") || name.ends_with("_stream") {
+                        64
+                    } else {
+                        128
+                    },
+                );
+            }
+            if name == "rms_norm_parallel" {
+                descriptor.set_max_total_threads_per_threadgroup(256);
             }
             let pipeline = device
                 .new_compute_pipeline_state(&descriptor)
@@ -121,6 +199,10 @@ impl Gpu {
             pipelines,
             reference_kernels,
             matvec_variant: variant.into(),
+            parallel_norm: norm_mode == "parallel",
+            profiler: None,
+            frame_started: Cell::new(None),
+            frame_timing: Cell::new(None),
         })
     }
     pub fn kernel_mode(&self) -> &str {
@@ -128,6 +210,46 @@ impl Gpu {
             "reference"
         } else {
             &self.matvec_variant
+        }
+    }
+    pub fn norm_mode(&self) -> &str {
+        if self.parallel_norm && !self.reference_kernels {
+            "parallel"
+        } else {
+            "serial"
+        }
+    }
+    pub fn enable_profiling(&mut self) -> Result<()> {
+        self.profiler = Some(StageProfiler::new(&self.device)?);
+        Ok(())
+    }
+    pub fn disable_profiling(&mut self) {
+        self.profiler = None;
+    }
+    pub fn set_parallel_norm(&mut self, enabled: bool) {
+        self.parallel_norm = enabled;
+    }
+    pub fn last_frame_timing(&self) -> Option<FrameTiming> {
+        self.frame_timing.get()
+    }
+    pub fn profile_report(&self) -> Result<Vec<ProfileRow>> {
+        self.profiler
+            .as_ref()
+            .context("GPU profiling is not enabled")?
+            .report()
+    }
+    pub fn begin_encoding<'a>(&'a self, command: &'a CommandBufferRef) -> DispatchEncoder<'a> {
+        if let Some(profiler) = &self.profiler {
+            profiler.reset();
+        }
+        DispatchEncoder {
+            gpu: self,
+            command,
+            encoder: if self.profiler.is_none() {
+                Some(command.new_compute_command_encoder())
+            } else {
+                None
+            },
         }
     }
     pub fn alloc_f32(&self, len: usize) -> Result<Buffer> {
@@ -182,6 +304,8 @@ impl Gpu {
     }
     /// The caller should wrap each token in objc::rc::autoreleasepool.
     pub fn begin(&self) -> &CommandBufferRef {
+        self.frame_started.set(Some(Instant::now()));
+        self.frame_timing.set(None);
         self.queue.new_command_buffer()
     }
     pub fn encode(
@@ -195,7 +319,29 @@ impl Gpu {
     ) -> Result<()> {
         let (sizes, expected_threads) = dispatch_layout(name, params)?;
         let specialized = if !self.reference_kernels && name == "matvec_affine" {
-            specialized_matvec(params, self.matvec_variant == "aligned")
+            let stream = if self.matvec_variant == "stream"
+                && params[2] == 4
+                && u64::from(params[0]) * u64::from(params[1]) <= i32::MAX as u64
+            {
+                match params[3] {
+                    32 => Some("matvec_q4_g32_stream"),
+                    64 => Some("matvec_q4_g64_stream"),
+                    128 => Some("matvec_q4_g128_stream"),
+                    _ => None,
+                }
+            } else {
+                None
+            };
+            stream.or_else(|| specialized_matvec(params, self.matvec_variant == "aligned"))
+        } else if !self.reference_kernels
+            && self.parallel_norm
+            && name == "rms_norm"
+            && params[0] >= 1024
+            && buffers.len() == 3
+            && !std::ptr::eq(buffers[0], buffers[2])
+            && !std::ptr::eq(buffers[1], buffers[2])
+        {
+            Some("rms_norm_parallel")
         } else {
             None
         };
@@ -213,7 +359,9 @@ impl Gpu {
             threads == expected_threads,
             "{name}: expected {expected_threads} threads, got {threads}"
         );
-        let actual_group_size = if specialized.is_some_and(|n| n.ends_with("_aligned")) {
+        let actual_group_size = if specialized == Some("rms_norm_parallel") {
+            256
+        } else if specialized.is_some_and(|n| n.ends_with("_aligned") || n.ends_with("_stream")) {
             64
         } else {
             group_size
@@ -238,7 +386,9 @@ impl Gpu {
             std::mem::size_of_val(params) as u64,
             params.as_ptr().cast(),
         );
-        let actual_threads = if specialized.is_some() {
+        let actual_threads = if specialized == Some("rms_norm_parallel") {
+            256
+        } else if specialized.is_some() {
             (params[0] as usize).div_ceil(4) * 32
         } else {
             threads
@@ -275,12 +425,30 @@ impl Gpu {
         Ok(())
     }
     pub fn finish(&self, command: &CommandBufferRef) -> Result<()> {
+        let cpu_encode_seconds = self
+            .frame_started
+            .get()
+            .map(|t| t.elapsed().as_secs_f64())
+            .unwrap_or(0.);
+        let commit_started = Instant::now();
         command.commit();
+        let cpu_commit_seconds = commit_started.elapsed().as_secs_f64();
+        let wait_started = Instant::now();
         command.wait_until_completed();
+        let completion_wait_seconds = wait_started.elapsed().as_secs_f64();
         ensure!(
             command.status() == MTLCommandBufferStatus::Completed,
             "Metal command failed with status {:?}",
             command.status()
+        );
+        self.frame_timing.set(
+            timing::command_timing(
+                command,
+                cpu_encode_seconds,
+                cpu_commit_seconds,
+                completion_wait_seconds,
+            )
+            .ok(),
         );
         Ok(())
     }

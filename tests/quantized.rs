@@ -7,6 +7,7 @@ use qwen_metal::gpu::Gpu;
 fn specialized_q4_q8_match_scalar_across_groups_and_row_tails() -> Result<()> {
     let fast = Gpu::new_with_variant(false, "packed4")?;
     let aligned = Gpu::new_with_variant(false, "aligned")?;
+    let stream = Gpu::new_with_variant(false, "stream")?;
     let reference = Gpu::new_with_reference(true)?;
     for bits in [4u32, 8] {
         for group in [32usize, 64, 128] {
@@ -48,7 +49,7 @@ fn specialized_q4_q8_match_scalar_across_groups_and_row_tails() -> Result<()> {
                                 .sum::<f64>() as f32
                         })
                         .collect();
-                    for gpu in [&fast, &aligned, &reference] {
+                    for gpu in [&fast, &aligned, &stream, &reference] {
                         let wb = gpu.upload_bytes(bytemuck::cast_slice(&w))?;
                         let sb = gpu.upload_f32(&scales)?;
                         let bb = gpu.upload_f32(&biases)?;

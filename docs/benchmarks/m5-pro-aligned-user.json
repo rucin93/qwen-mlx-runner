@@ -1,0 +1,41 @@
+{
+  "allocated_bytes": 18055610368,
+  "context_capacity": 8192,
+  "device": "Apple M5 Pro",
+  "engine_version": "0.1.0",
+  "generated_steps": 128,
+  "kernel_mode": "aligned",
+  "kind": "model_fixed_token_benchmark",
+  "load_seconds": 22.567253,
+  "median_decode_tokens_per_second": 8.16095765377821,
+  "model_path": "models/Qwen3.8-27B-4bit",
+  "notes": "one unreported warmup; no prompt cache reuse; greedy; fixed tokens; EOS ignored; not a chat quality evaluation",
+  "prompt_tokens": 512,
+  "runs": [
+    {
+      "decode_seconds": 15.662952291,
+      "decode_tokens_per_second": 8.172150283158901,
+      "prefill_seconds": 59.529649208,
+      "prefill_tokens_per_second": 8.60075620823907,
+      "run": 1,
+      "warmup": false
+    },
+    {
+      "decode_seconds": 15.684433792,
+      "decode_tokens_per_second": 8.16095765377821,
+      "prefill_seconds": 58.953994,
+      "prefill_tokens_per_second": 8.684738136656186,
+      "run": 2,
+      "warmup": false
+    },
+    {
+      "decode_seconds": 15.8776145,
+      "decode_tokens_per_second": 8.061664426983032,
+      "prefill_seconds": 58.969601333,
+      "prefill_tokens_per_second": 8.682439569308729,
+      "run": 3,
+      "warmup": false
+    }
+  ],
+  "provenance": "User-supplied result from target Mac. Not executed in this workspace; commit and checkpoint revision were not reported."
+}

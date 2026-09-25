@@ -1,0 +1,33 @@
+{
+  "provenance": "User-supplied results, not local executions.",
+  "measurements": [
+    {
+      "bits": 4,
+      "cols": 5120,
+      "device": "Apple M5 Pro",
+      "effective_weight_gb_per_second": 225.35577753722467,
+      "group_size": 64,
+      "iterations": 100,
+      "kernel_mode": "aligned",
+      "kind": "packed_matvec_microbenchmark",
+      "milliseconds_per_matvec": 0.24718958000000002,
+      "note": "Repeated synthetic weights may benefit from cache. This is NOT model tokens per second.",
+      "rows": 17408,
+      "seconds": 0.024718958
+    },
+    {
+      "bits": 4,
+      "cols": 5120,
+      "device": "Apple M5 Pro",
+      "effective_weight_gb_per_second": 265.97488656131014,
+      "group_size": 64,
+      "iterations": 12,
+      "kernel_mode": "aligned",
+      "kind": "packed_matvec_microbenchmark",
+      "milliseconds_per_matvec": 2.9875903333333333,
+      "note": "Repeated synthetic weights may benefit from cache. This is NOT model tokens per second.",
+      "rows": 248320,
+      "seconds": 0.035851084
+    }
+  ]
+}

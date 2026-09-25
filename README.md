@@ -18,14 +18,16 @@ the original path available for same-binary comparisons. Real Metal GPU tests
 cover an independent FP64 matrix oracle and complete four-layer dense and Q4
 synthetic hybrid models, including reset and context bounds.
 
-**Real Qwen3.8-27B output and M5 Pro throughput have not yet been validated.**
-Do not interpret a successful synthetic test, a matrix microbenchmark, or the
-availability of the server as that evidence.
+**Trained Qwen3.8-27B output quality has not yet been independently validated.**
+Target-machine throughput is documented through user-supplied M5 Pro results;
+local GPU verification uses an M1. Synthetic tests and microbenchmarks do not
+establish trained-model quality or target throughput.
 
-The reported M5 Pro baseline is 1.45–1.55 decode tokens/s. The requested 10×
-improvement remains a target, **not a verified result**. See
-[performance measurements and reproduction](docs/performance-2026-09-25.md)
-for the local M1 evidence and the exact M5 benchmark command.
+The reported M5 Pro result improved from a measured run of 1.45 decode tokens/s
+to a three-run median of **8.16 tokens/s** with the aligned kernels. The requested
+10× improvement remains a target, **not a verified result**. See the
+[first iteration](docs/performance-2026-09-25.md) and
+[v0.2 profiling and optimization notes](docs/performance-v0.2.md).
 
 Implemented:
 
@@ -176,10 +178,35 @@ tokens/second**.
 
 The default `aligned` mode uses a vectorized Q4 kernel for compatible shapes
 and falls back to a tail-safe packed kernel. `QWEN_METAL_GEMV=packed4` selects
-the alternative packed implementation. `QWEN_METAL_REFERENCE=1` restores the
+the alternative packed implementation; `QWEN_METAL_GEMV=stream` selects an
+experimental lane-per-quantization-group Q4 implementation. Stream is opt-in:
+it has no established target-machine speed advantage.
+`QWEN_METAL_REFERENCE=1` restores the
 original matrix and barrier-list path for `bench`, `generate`, `serve`, and
 `synthetic-bench`. These switches leave model weights and context unchanged.
 Final model benchmark JSON reports `kernel_mode`.
+
+RMS normalization retains the original single-SIMD path by default.
+`QWEN_METAL_NORM=parallel` enables the new 256-thread reduction for large
+disjoint buffers. It remains opt-in until full target-model improvement is
+measured. Final JSON also reports `norm_mode`.
+
+To locate costs on the actual model, run one diagnostic capture:
+
+```sh
+./target/release/qwen-metal profile \
+  --model models/Qwen3.8-27B-4bit --context 8192 --history 512 \
+  --compare-norm > profile.json
+```
+
+This prefills the fixed history once, then captures both serial and parallel
+RMS. Each capture warms up a complete step, times a normal step, and profiles
+the next step. Within each `captures` entry, `normal_timing` separates CPU encoding,
+CPU commit, completion wait, and Metal's whole-command GPU interval. GPU time
+overlaps the wait and must not be added to it. Operation samples are calibrated
+to the CPU timebase. The profiled step uses one encoder per operation, which
+changes scheduling; its elapsed time is **not normal inference throughput**.
+Omitting `--model` profiles the smaller synthetic reused-weight graph instead.
 
 For a same-build comparison, save the final JSON from two otherwise identical
 `bench` commands (progress is printed to stderr):

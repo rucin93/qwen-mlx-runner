@@ -3,12 +3,12 @@ mod synthetic;
 use std::{path::Path, time::Instant};
 
 use anyhow::{Context, Result, ensure};
-use metal::{Buffer, BufferRef, ComputeCommandEncoderRef};
+use metal::{Buffer, BufferRef};
 
 use crate::{
     chat::{ChatTokenizer, GenerationOutput, GenerationRequest, Sampler, TextGenerator},
     config::ModelConfig,
-    gpu::Gpu,
+    gpu::{DispatchEncoder, FrameTiming, Gpu, ProfileRow},
     weights::{Checkpoint, MatrixData},
 };
 
@@ -82,16 +82,9 @@ impl Matrix {
         }
     }
 
-    fn matvec(
-        &self,
-        g: &Gpu,
-        e: &ComputeCommandEncoderRef,
-        x: &BufferRef,
-        y: &BufferRef,
-    ) -> Result<()> {
+    fn matvec(&self, e: &DispatchEncoder<'_>, x: &BufferRef, y: &BufferRef) -> Result<()> {
         if let (Some(s), Some(b)) = (&self.scales, &self.biases) {
-            g.encode(
-                e,
+            e.encode(
                 "matvec_affine",
                 &[&self.weight, s, b, x, y],
                 &[
@@ -104,8 +97,7 @@ impl Matrix {
                 128,
             )
         } else {
-            g.encode(
-                e,
+            e.encode(
                 "matvec_f16",
                 &[&self.weight, x, y],
                 &[self.rows as u32, self.cols as u32],
@@ -115,16 +107,9 @@ impl Matrix {
         }
     }
 
-    fn embed(
-        &self,
-        g: &Gpu,
-        e: &ComputeCommandEncoderRef,
-        token: u32,
-        y: &BufferRef,
-    ) -> Result<()> {
+    fn embed(&self, e: &DispatchEncoder<'_>, token: u32, y: &BufferRef) -> Result<()> {
         if let (Some(s), Some(b)) = (&self.scales, &self.biases) {
-            g.encode(
-                e,
+            e.encode(
                 "embed_affine",
                 &[&self.weight, s, b, y],
                 &[token, self.cols as u32, self.bits, self.group as u32],
@@ -132,8 +117,7 @@ impl Matrix {
                 128,
             )
         } else {
-            g.encode(
-                e,
+            e.encode(
                 "embed_f16",
                 &[&self.weight, y],
                 &[token, self.cols as u32],
@@ -399,6 +383,24 @@ impl Engine {
     pub fn kernel_mode(&self) -> &str {
         self.gpu.kernel_mode()
     }
+    pub fn norm_mode(&self) -> &str {
+        self.gpu.norm_mode()
+    }
+    pub fn enable_profiling(&mut self) -> Result<()> {
+        self.gpu.enable_profiling()
+    }
+    pub fn disable_profiling(&mut self) {
+        self.gpu.disable_profiling();
+    }
+    pub fn set_parallel_norm(&mut self, enabled: bool) {
+        self.gpu.set_parallel_norm(enabled);
+    }
+    pub fn profile_report(&self) -> Result<Vec<ProfileRow>> {
+        self.gpu.profile_report()
+    }
+    pub fn last_frame_timing(&self) -> Option<FrameTiming> {
+        self.gpu.last_frame_timing()
+    }
     pub fn device_name(&self) -> &str {
         self.gpu.device.name()
     }
@@ -461,8 +463,8 @@ impl Engine {
     fn forward_inner(&mut self, token: u32, logits: bool) -> Result<Vec<f32>> {
         let (g, c, s) = (&self.gpu, &self.config, &self.scratch);
         let cmd = g.begin();
-        let e = cmd.new_compute_command_encoder();
-        self.embedding.embed(g, e, token, &s.x)?;
+        let e = g.begin_encoding(cmd);
+        self.embedding.embed(&e, token, &s.x)?;
         let h = c.hidden_size;
         let hd = c.head_dim;
         let kh = c.linear_num_key_heads;
@@ -474,7 +476,7 @@ impl Engine {
         let nk = c.num_key_value_heads;
         let eps = c.rms_norm_eps.to_bits();
         let run = |name: &str, buffers: &[&BufferRef], p: &[u32], threads: usize, group: usize| {
-            g.encode(e, name, buffers, p, threads, group)
+            e.encode(name, buffers, p, threads, group)
         };
         for layer in &self.layers {
             run(
@@ -486,10 +488,10 @@ impl Engine {
             )?;
             match &layer.mixer {
                 Mixer::Delta(d) => {
-                    d.qkv.matvec(g, e, &s.normalized, &s.qkv)?;
-                    d.z.matvec(g, e, &s.normalized, &s.z)?;
-                    d.a.matvec(g, e, &s.normalized, &s.a)?;
-                    d.b.matvec(g, e, &s.normalized, &s.b)?;
+                    d.qkv.matvec(&e, &s.normalized, &s.qkv)?;
+                    d.z.matvec(&e, &s.normalized, &s.z)?;
+                    d.a.matvec(&e, &s.normalized, &s.a)?;
+                    d.b.matvec(&e, &s.normalized, &s.b)?;
                     run(
                         "conv_silu",
                         &[&s.qkv, &d.conv, &d.conv_state, &s.convolved],
@@ -518,12 +520,12 @@ impl Engine {
                         vh * 32,
                         128,
                     )?;
-                    d.out.matvec(g, e, &s.gated, &s.residual)?;
+                    d.out.matvec(&e, &s.gated, &s.residual)?;
                 }
                 Mixer::Attention(a) => {
-                    a.q.matvec(g, e, &s.normalized, &s.qproj)?;
-                    a.k.matvec(g, e, &s.normalized, &s.k)?;
-                    a.v.matvec(g, e, &s.normalized, &s.v)?;
+                    a.q.matvec(&e, &s.normalized, &s.qproj)?;
+                    a.k.matvec(&e, &s.normalized, &s.k)?;
+                    a.v.matvec(&e, &s.normalized, &s.v)?;
                     run(
                         "split_q_gate",
                         &[&s.qproj, &s.q, &s.attention_gate],
@@ -590,7 +592,7 @@ impl Engine {
                         nh * hd,
                         128,
                     )?;
-                    a.out.matvec(g, e, &s.mixed, &s.residual)?;
+                    a.out.matvec(&e, &s.mixed, &s.residual)?;
                 }
             }
             run("add", &[&s.x, &s.residual, &s.x], &[h as u32], h, 128)?;
@@ -601,8 +603,8 @@ impl Engine {
                 32,
                 32,
             )?;
-            layer.gate.matvec(g, e, &s.normalized, &s.gate)?;
-            layer.up.matvec(g, e, &s.normalized, &s.up)?;
+            layer.gate.matvec(&e, &s.normalized, &s.gate)?;
+            layer.up.matvec(&e, &s.normalized, &s.up)?;
             run(
                 "swiglu",
                 &[&s.gate, &s.up, &s.activated],
@@ -610,7 +612,7 @@ impl Engine {
                 c.intermediate_size,
                 128,
             )?;
-            layer.down.matvec(g, e, &s.activated, &s.residual)?;
+            layer.down.matvec(&e, &s.activated, &s.residual)?;
             run("add", &[&s.x, &s.residual, &s.x], &[h as u32], h, 128)?;
         }
         if logits {
@@ -624,9 +626,9 @@ impl Engine {
             self.head
                 .as_ref()
                 .unwrap_or(&self.embedding)
-                .matvec(g, e, &s.normalized, &s.logits)?;
+                .matvec(&e, &s.normalized, &s.logits)?;
         }
-        e.end_encoding();
+        e.end_encoding()?;
         g.finish(cmd)?;
         self.position += 1;
         if logits {
