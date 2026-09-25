@@ -23,19 +23,26 @@ Target-machine throughput is documented through user-supplied M5 Pro results;
 local GPU verification uses an M1. Synthetic tests and microbenchmarks do not
 establish trained-model quality or target throughput.
 
-The reported M5 Pro result improved from a measured run of 1.45 decode tokens/s
-to a three-run median of **8.16 tokens/s** with the aligned kernels. The requested
-10× improvement remains a target, **not a verified result**. See the
-[first iteration](docs/performance-2026-09-25.md) and
-[v0.2 profiling and optimization notes](docs/performance-v0.2.md).
-The [v0.3 notes](docs/performance-v0.3.md) cover the M5 zero-counter fallback
-and optional lossless BF16 metadata storage.
-The [v0.4 follow-up](docs/performance-v0.4.md) records the successful M5 profile:
-parallel RMS reduced one normal step from 83.18 to 72.08 ms. These single-step
-measurements do not establish a new full-benchmark token rate.
-Subsequent v0.3 sustained results were 7.45 tokens/s for parallel RMS with FP32
-metadata and 8.03 with BF16 metadata. The [v0.5 diagnostic notes](docs/performance-v0.5.md)
-explain the gap between those results and the short profile measurements.
+The latest user-reported M5 Pro / 48 GB result is **16.13 decode tokens/s on
+external power**, over 128 generated steps after warmup. It exceeds 15 tokens/s
+and is 10.75x the original approximately 1.5 tokens/s (11.11x the originally
+reported measured run of 1.45242). This is **one measured run with timing enabled**,
+not yet a repeated three-run uninstrumented median. See the
+[M5 result and reproducible configuration](docs/m5-pro.md).
+
+The selected configuration is aligned GEMV, parallel RMS, exact BF16 metadata
+and serial attention values. The user clarified that external power was
+connected before the latest run. The approximately 2x jump from the previous
+BF16 measurement cannot be attributed to a new kernel in v0.5; its active shader
+path is unchanged. Power conditions are the leading explanation, pending a
+controlled comparison on the same build.
+
+Earlier results and implementation evidence remain in the
+[first iteration](docs/performance-2026-09-25.md),
+[v0.2 profiling](docs/performance-v0.2.md),
+[v0.3 BF16 metadata](docs/performance-v0.3.md),
+[v0.4 attention follow-up](docs/performance-v0.4.md), and
+[v0.5 sustained diagnostics](docs/performance-v0.5.md).
 
 Implemented:
 
@@ -112,12 +119,22 @@ output correctness.
 
 ## Local chat server
 
+For the M5 Pro configuration observed at 16.13 tokens/s, connect external power
+and use:
+
 ```sh
-./target/release/qwen-metal serve \
+QWEN_METAL_REFERENCE=0 QWEN_METAL_GEMV=aligned \
+QWEN_METAL_NORM=parallel QWEN_METAL_METADATA=bf16 QWEN_METAL_ATTN_VALUES=serial \
+  ./target/release/qwen-metal serve \
   --model models/Qwen3.8-27B-4bit \
   --context 8192 \
   --listen 127.0.0.1:8080
 ```
+
+The measurement is for the fixed-token benchmark. Chat latency also depends on
+prompt length, sampling settings and prefix reuse; model quality remains subject
+to the validation limit above. Global defaults remain conservative for other
+Apple Silicon machines.
 
 The served model ID is the final component of the model directory path. Confirm
 it with `GET /v1/models`.

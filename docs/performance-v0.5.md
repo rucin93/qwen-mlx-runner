@@ -1,5 +1,10 @@
 # Sustained benchmark timing
 
+Update: the returned diagnostic report reached **16.13 tokens/s on external
+power** in one measured 128-token run. See the [M5 result](m5-pro.md) for the
+validated totals, configuration and limits. The investigation below describes
+the evidence available before that report arrived.
+
 The next user-reported M5 Pro results did not reproduce the single-step profile's
 apparent throughput. Both used v0.3, aligned GEMV, parallel RMS, a 512-token
 prefill, 128 generated steps and context capacity 8192:

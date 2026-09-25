@@ -241,3 +241,32 @@ on the independent tiny BF16 fixture. Warmup and measured phases each contained
 and phase containment. It reported 33 compacted matrices and 6,576 bytes saved.
 The local system snapshots returned Low Power Mode false and thermal state
 `fair`; these describe the M1 test host only, not the user's M5.
+
+## Returned M5 v0.5 report: observed target threshold
+
+The user supplied `docs/benchmarks/m5-pro-v0.5-timing-user.json` and clarified
+that external power had been connected before this run. It reports one measured
+128-token decode at 16.1308010524 tokens/s (7.935129792 s), after a separately
+excluded warmup at 16.1329225936 tokens/s. This exceeds 15 tokens/s in the measured
+run, and is 10.7539x the rounded original 1.5 tokens/s baseline, or 11.1062x the
+original measured 1.4524158079 tokens/s observation.
+
+Direct parsing and independent review verified rate identities, phase and block
+totals, mean identities, exact contiguous history coverage, 512 prefill and 128
+decode GPU samples without missing data, and forward/sampler containment in
+wall time. `read_benchmark` from the existing comparator accepts the single
+record and its reported median; a direct absolute-threshold check passes.
+The two-report comparator correctly rejects comparison against the prior
+three-run report because measured run counts differ. That guard was not relaxed.
+
+No three-run uninstrumented median is claimed yet. The active GPU shader path
+is unchanged from the prior BF16/parallel-RMS configuration, with parallel
+attention disabled. External power is the newly reported condition and the
+leading explanation of the roughly 2x change; it is not proof of a new v0.5
+kernel speedup or an isolated same-build battery penalty. All six system
+snapshots show nominal thermal state and Low Power Mode off in this run only.
+
+The [M5 configuration guide](m5-pro.md) preserves the result and provides the
+headless server command plus a three-run uninstrumented confirmation command.
+This update changes documentation and retains the supplied JSON; it changes
+no executable code or defaults. JSON validation and `git diff --check` passed.

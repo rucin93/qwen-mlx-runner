@@ -1,0 +1,1140 @@
+{
+  "allocated_bytes": 16374677504,
+  "attention_mode": "serial",
+  "compacted_matrices": 498,
+  "context_capacity": 8192,
+  "device": "Apple M5 Pro",
+  "engine_version": "0.5.0",
+  "generated_steps": 128,
+  "kernel_mode": "aligned",
+  "kind": "model_fixed_token_benchmark",
+  "load_seconds": 10.97448225,
+  "median_decode_tokens_per_second": 16.13080105243476,
+  "metadata_mode": "bf16",
+  "metadata_saved_bytes": 1680834560,
+  "model_path": "models/Qwen3.8-27B-4bit",
+  "norm_mode": "parallel",
+  "notes": "one separately reported warmup excluded from median; no prompt cache reuse; greedy; fixed tokens; EOS ignored; not a chat quality evaluation; timing adds host bookkeeping, no extra GPU encoders or waits",
+  "prompt_tokens": 512,
+  "runs": [
+    {
+      "decode_seconds": 7.935129792,
+      "decode_tokens_per_second": 16.13080105243476,
+      "prefill_seconds": 29.419353375,
+      "prefill_tokens_per_second": 17.403509637811677,
+      "run": 1,
+      "timing": {
+        "conditions_after_decode": {
+          "low_power_mode": false,
+          "thermal_state": "nominal",
+          "thermal_state_code": 0
+        },
+        "conditions_before_decode": {
+          "low_power_mode": false,
+          "thermal_state": "nominal",
+          "thermal_state_code": 0
+        },
+        "conditions_before_prefill": {
+          "low_power_mode": false,
+          "thermal_state": "nominal",
+          "thermal_state_code": 0
+        },
+        "decode": {
+          "blocks": [
+            {
+              "completion_wait_mean_milliseconds": 60.6913111875,
+              "cpu_commit_mean_milliseconds": 0.0026459375000000003,
+              "cpu_encode_mean_milliseconds": 0.2962474062499999,
+              "forward_mean_milliseconds": 61.03191537500001,
+              "gpu_mean_milliseconds": 60.176910156769736,
+              "history_range": [
+                512,
+                543
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.47043884375000006,
+              "step_range": [
+                1,
+                32
+              ],
+              "unclassified_host_mean_milliseconds": 0.041710843749999914,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 61.17613550000001,
+              "cpu_commit_mean_milliseconds": 0.0029959687500000004,
+              "cpu_encode_mean_milliseconds": 0.29811584375,
+              "forward_mean_milliseconds": 61.520828093750005,
+              "gpu_mean_milliseconds": 60.67103124769346,
+              "history_range": [
+                544,
+                575
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.46824731249999973,
+              "step_range": [
+                33,
+                64
+              ],
+              "unclassified_host_mean_milliseconds": 0.043580781249999465,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 61.18233728124999,
+              "cpu_commit_mean_milliseconds": 0.00342184375,
+              "cpu_encode_mean_milliseconds": 0.31030475,
+              "forward_mean_milliseconds": 61.536751281250005,
+              "gpu_mean_milliseconds": 60.68672786386742,
+              "history_range": [
+                576,
+                607
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.4719505312499999,
+              "step_range": [
+                65,
+                96
+              ],
+              "unclassified_host_mean_milliseconds": 0.04068740625000106,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 61.62768625,
+              "cpu_commit_mean_milliseconds": 0.004240937500000001,
+              "cpu_encode_mean_milliseconds": 0.3267240624999999,
+              "forward_mean_milliseconds": 61.99764187499999,
+              "gpu_mean_milliseconds": 61.10748958144541,
+              "history_range": [
+                608,
+                639
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.4741549375000001,
+              "step_range": [
+                97,
+                128
+              ],
+              "unclassified_host_mean_milliseconds": 0.038990625000000355,
+              "valid_gpu_samples": 32
+            }
+          ],
+          "completion_wait": {
+            "max_milliseconds": 68.816708,
+            "mean_milliseconds": 61.1693675546875,
+            "min_milliseconds": 60.378750000000004,
+            "p50_milliseconds": 60.94375,
+            "p95_milliseconds": 62.039334000000004,
+            "total_seconds": 7.829679047
+          },
+          "cpu_commit": {
+            "max_milliseconds": 0.011708,
+            "mean_milliseconds": 0.003326171875,
+            "min_milliseconds": 0.0015409999999999998,
+            "p50_milliseconds": 0.0026249999999999997,
+            "p95_milliseconds": 0.008083,
+            "total_seconds": 0.00042575
+          },
+          "cpu_encode": {
+            "max_milliseconds": 0.42204200000000003,
+            "mean_milliseconds": 0.3078480156249999,
+            "min_milliseconds": 0.278167,
+            "p50_milliseconds": 0.295375,
+            "p95_milliseconds": 0.384333,
+            "total_seconds": 0.03940454599999999
+          },
+          "forward": {
+            "max_milliseconds": 69.127,
+            "mean_milliseconds": 61.52178415625001,
+            "min_milliseconds": 60.744042,
+            "p50_milliseconds": 61.295875,
+            "p95_milliseconds": 62.418959,
+            "total_seconds": 7.874788372000001
+          },
+          "gpu": {
+            "max_milliseconds": 68.38424998568371,
+            "mean_milliseconds": 60.660539712444006,
+            "min_milliseconds": 59.869750024518,
+            "p50_milliseconds": 60.43083331314847,
+            "p95_milliseconds": 61.64137498126365,
+            "total_seconds": 7.764549083192833
+          },
+          "gpu_timing_note": "GPU execution and completion wait overlap; do not add their durations.",
+          "missing_gpu_samples": 0,
+          "percentile_method": "nearest_rank",
+          "sample_count": 128,
+          "sampling": {
+            "max_milliseconds": 0.540083,
+            "mean_milliseconds": 0.47119790624999985,
+            "min_milliseconds": 0.46558299999999997,
+            "p50_milliseconds": 0.46779200000000004,
+            "p95_milliseconds": 0.482,
+            "total_seconds": 0.06031333199999998
+          },
+          "unclassified_host": {
+            "max_milliseconds": 0.0496669999999963,
+            "mean_milliseconds": 0.0412424140625002,
+            "min_milliseconds": 0.015917000000004178,
+            "p50_milliseconds": 0.045373999999993864,
+            "p95_milliseconds": 0.04874900000000765,
+            "total_seconds": 0.005279029000000025
+          },
+          "unclassified_host_description": "Forward wall time minus CPU encode, commit, and completion wait; includes shared readback, autorelease, timing, and validation work, not an isolated readback measurement.",
+          "valid_gpu_samples": 128
+        },
+        "note": "Normal one-command-buffer execution. Sampling and forward are separate. GPU overlaps completion wait. Only the last prefill token computes/reads logits. System conditions are snapshots outside timed phases, not GPU frequency or temperature measurements.",
+        "prefill": {
+          "blocks": [
+            {
+              "completion_wait_mean_milliseconds": 56.27867578124999,
+              "cpu_commit_mean_milliseconds": 0.00303775,
+              "cpu_encode_mean_milliseconds": 0.33783184375,
+              "forward_mean_milliseconds": 56.622108,
+              "gpu_mean_milliseconds": 55.75175260310061,
+              "history_range": [
+                0,
+                31
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                1,
+                32
+              ],
+              "unclassified_host_mean_milliseconds": 0.0025626249999992443,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 56.148519531249995,
+              "cpu_commit_mean_milliseconds": 0.00395959375,
+              "cpu_encode_mean_milliseconds": 0.3320833125000001,
+              "forward_mean_milliseconds": 56.4869975,
+              "gpu_mean_milliseconds": 55.61396093798976,
+              "history_range": [
+                32,
+                63
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                33,
+                64
+              ],
+              "unclassified_host_mean_milliseconds": 0.002435062500000468,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 56.285912906250005,
+              "cpu_commit_mean_milliseconds": 0.0035520625,
+              "cpu_encode_mean_milliseconds": 0.33080078125,
+              "forward_mean_milliseconds": 56.62295575,
+              "gpu_mean_milliseconds": 55.753020831616595,
+              "history_range": [
+                64,
+                95
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                65,
+                96
+              ],
+              "unclassified_host_mean_milliseconds": 0.0026900000000005045,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 56.47527850000001,
+              "cpu_commit_mean_milliseconds": 0.0030794999999999998,
+              "cpu_encode_mean_milliseconds": 0.32785009374999985,
+              "forward_mean_milliseconds": 56.808605531249995,
+              "gpu_mean_milliseconds": 55.946424480680434,
+              "history_range": [
+                96,
+                127
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                97,
+                128
+              ],
+              "unclassified_host_mean_milliseconds": 0.002397437500000106,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 56.41547659374999,
+              "cpu_commit_mean_milliseconds": 0.0024493124999999997,
+              "cpu_encode_mean_milliseconds": 0.31254565625,
+              "forward_mean_milliseconds": 56.73245959375001,
+              "gpu_mean_milliseconds": 55.88588671889738,
+              "history_range": [
+                128,
+                159
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                129,
+                160
+              ],
+              "unclassified_host_mean_milliseconds": 0.001988031250000277,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 56.590141875,
+              "cpu_commit_mean_milliseconds": 0.00278128125,
+              "cpu_encode_mean_milliseconds": 0.32070834375,
+              "forward_mean_milliseconds": 56.915556062499995,
+              "gpu_mean_milliseconds": 56.06821484252578,
+              "history_range": [
+                160,
+                191
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                161,
+                192
+              ],
+              "unclassified_host_mean_milliseconds": 0.0019245625000002906,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 56.961962343750024,
+              "cpu_commit_mean_milliseconds": 0.0029193124999999996,
+              "cpu_encode_mean_milliseconds": 0.3236328124999999,
+              "forward_mean_milliseconds": 57.2907799375,
+              "gpu_mean_milliseconds": 56.44559635402402,
+              "history_range": [
+                192,
+                223
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                193,
+                224
+              ],
+              "unclassified_host_mean_milliseconds": 0.002265468749999746,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 57.29028646874999,
+              "cpu_commit_mean_milliseconds": 0.0039361875000000004,
+              "cpu_encode_mean_milliseconds": 0.34018759375,
+              "forward_mean_milliseconds": 57.6372709375,
+              "gpu_mean_milliseconds": 56.752891928226745,
+              "history_range": [
+                224,
+                255
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                225,
+                256
+              ],
+              "unclassified_host_mean_milliseconds": 0.002860687500000651,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 57.158382875000015,
+              "cpu_commit_mean_milliseconds": 0.0033959374999999997,
+              "cpu_encode_mean_milliseconds": 0.3310598125,
+              "forward_mean_milliseconds": 57.495375031250006,
+              "gpu_mean_milliseconds": 56.62605208726745,
+              "history_range": [
+                256,
+                287
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                257,
+                288
+              ],
+              "unclassified_host_mean_milliseconds": 0.0025364062499998175,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 57.31362896875,
+              "cpu_commit_mean_milliseconds": 0.00266275,
+              "cpu_encode_mean_milliseconds": 0.3203464687500001,
+              "forward_mean_milliseconds": 57.638484374999976,
+              "gpu_mean_milliseconds": 56.79767968922533,
+              "history_range": [
+                288,
+                319
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                289,
+                320
+              ],
+              "unclassified_host_mean_milliseconds": 0.0018461875000001272,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 57.28935018750002,
+              "cpu_commit_mean_milliseconds": 0.0026016562499999994,
+              "cpu_encode_mean_milliseconds": 0.32386856249999996,
+              "forward_mean_milliseconds": 57.61754428124999,
+              "gpu_mean_milliseconds": 56.757885415208875,
+              "history_range": [
+                320,
+                351
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                321,
+                352
+              ],
+              "unclassified_host_mean_milliseconds": 0.0017238750000003224,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 57.419255218749996,
+              "cpu_commit_mean_milliseconds": 0.0026354374999999998,
+              "cpu_encode_mean_milliseconds": 0.32763031249999996,
+              "forward_mean_milliseconds": 57.75140371874999,
+              "gpu_mean_milliseconds": 56.89294530930056,
+              "history_range": [
+                352,
+                383
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                353,
+                384
+              ],
+              "unclassified_host_mean_milliseconds": 0.0018827500000010485,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 57.524035187500004,
+              "cpu_commit_mean_milliseconds": 0.002440187500000001,
+              "cpu_encode_mean_milliseconds": 0.3194883124999999,
+              "forward_mean_milliseconds": 57.84762371875,
+              "gpu_mean_milliseconds": 56.997843750650645,
+              "history_range": [
+                384,
+                415
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                385,
+                416
+              ],
+              "unclassified_host_mean_milliseconds": 0.0016600312500003166,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 58.432065124999994,
+              "cpu_commit_mean_milliseconds": 0.004108125,
+              "cpu_encode_mean_milliseconds": 0.3497760000000001,
+              "forward_mean_milliseconds": 58.789087250000016,
+              "gpu_mean_milliseconds": 57.90944661657704,
+              "history_range": [
+                416,
+                447
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                417,
+                448
+              ],
+              "unclassified_host_mean_milliseconds": 0.0031380000000004026,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 58.04307815625,
+              "cpu_commit_mean_milliseconds": 0.0026926875,
+              "cpu_encode_mean_milliseconds": 0.33019265625000005,
+              "forward_mean_milliseconds": 58.377966187500014,
+              "gpu_mean_milliseconds": 57.52186458448705,
+              "history_range": [
+                448,
+                479
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                449,
+                480
+              ],
+              "unclassified_host_mean_milliseconds": 0.002002687500000152,
+              "valid_gpu_samples": 32
+            },
+            {
+              "completion_wait_mean_milliseconds": 58.38309134374999,
+              "cpu_commit_mean_milliseconds": 0.0027890937499999995,
+              "cpu_encode_mean_milliseconds": 0.32670571874999993,
+              "forward_mean_milliseconds": 58.7177044375,
+              "gpu_mean_milliseconds": 57.58343098750629,
+              "history_range": [
+                480,
+                511
+              ],
+              "missing_gpu_samples": 0,
+              "sample_count": 32,
+              "sampling_mean_milliseconds": 0.0,
+              "step_range": [
+                481,
+                512
+              ],
+              "unclassified_host_mean_milliseconds": 0.0051182812499997715,
+              "valid_gpu_samples": 32
+            }
+          ],
+          "completion_wait": {
+            "max_milliseconds": 68.87675,
+            "mean_milliseconds": 57.1255713164063,
+            "min_milliseconds": 55.469292,
+            "p50_milliseconds": 57.069250000000004,
+            "p95_milliseconds": 58.536833,
+            "total_seconds": 29.248292514000028
+          },
+          "cpu_commit": {
+            "max_milliseconds": 0.011125,
+            "mean_milliseconds": 0.0030650546875000033,
+            "min_milliseconds": 0.001375,
+            "p50_milliseconds": 0.002417,
+            "p95_milliseconds": 0.006833,
+            "total_seconds": 0.0015693080000000017
+          },
+          "cpu_encode": {
+            "max_milliseconds": 0.547666,
+            "mean_milliseconds": 0.3284192675781251,
+            "min_milliseconds": 0.266291,
+            "p50_milliseconds": 0.319334,
+            "p95_milliseconds": 0.38283399999999995,
+            "total_seconds": 0.16815066500000006
+          },
+          "forward": {
+            "max_milliseconds": 69.30033300000001,
+            "mean_milliseconds": 57.45949514453127,
+            "min_milliseconds": 55.793083,
+            "p50_milliseconds": 57.391791,
+            "p95_milliseconds": 58.887833,
+            "total_seconds": 29.41926151400001
+          },
+          "gpu": {
+            "max_milliseconds": 60.012250003637746,
+            "mean_milliseconds": 56.581556071080286,
+            "min_milliseconds": 54.99087501084432,
+            "p50_milliseconds": 56.534833332989365,
+            "p95_milliseconds": 58.07249998906627,
+            "total_seconds": 28.969756708393106
+          },
+          "gpu_timing_note": "GPU execution and completion wait overlap; do not add their durations.",
+          "missing_gpu_samples": 0,
+          "percentile_method": "nearest_rank",
+          "sample_count": 512,
+          "sampling": {
+            "max_milliseconds": 0.0,
+            "mean_milliseconds": 0.0,
+            "min_milliseconds": 0.0,
+            "p50_milliseconds": 0.0,
+            "p95_milliseconds": 0.0,
+            "total_seconds": 0.0
+          },
+          "unclassified_host": {
+            "max_milliseconds": 0.10499900000000839,
+            "mean_milliseconds": 0.0024395058593752027,
+            "min_milliseconds": 0.0003749999999969056,
+            "p50_milliseconds": 0.0017489999999953376,
+            "p95_milliseconds": 0.004876999999993414,
+            "total_seconds": 0.0012490270000001039
+          },
+          "unclassified_host_description": "Forward wall time minus CPU encode, commit, and completion wait; includes shared readback, autorelease, timing, and validation work, not an isolated readback measurement.",
+          "valid_gpu_samples": 512
+        },
+        "prefill_final_token_has_logits": true
+      },
+      "warmup": false
+    }
+  ],
+  "timing_enabled": true,
+  "warmup_run": {
+    "decode_seconds": 7.934086292,
+    "decode_tokens_per_second": 16.132922593627875,
+    "prefill_seconds": 31.042362167,
+    "prefill_tokens_per_second": 16.493590186390147,
+    "run": 0,
+    "timing": {
+      "conditions_after_decode": {
+        "low_power_mode": false,
+        "thermal_state": "nominal",
+        "thermal_state_code": 0
+      },
+      "conditions_before_decode": {
+        "low_power_mode": false,
+        "thermal_state": "nominal",
+        "thermal_state_code": 0
+      },
+      "conditions_before_prefill": {
+        "low_power_mode": false,
+        "thermal_state": "nominal",
+        "thermal_state_code": 0
+      },
+      "decode": {
+        "blocks": [
+          {
+            "completion_wait_mean_milliseconds": 61.08867065625001,
+            "cpu_commit_mean_milliseconds": 0.00427340625,
+            "cpu_encode_mean_milliseconds": 0.30962759375000004,
+            "forward_mean_milliseconds": 61.448920468749996,
+            "gpu_mean_milliseconds": 60.5577330734377,
+            "history_range": [
+              512,
+              543
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.4964740312500001,
+            "step_range": [
+              1,
+              32
+            ],
+            "unclassified_host_mean_milliseconds": 0.0463488125000001,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 61.31715884375001,
+            "cpu_commit_mean_milliseconds": 0.0038490312500000013,
+            "cpu_encode_mean_milliseconds": 0.3122421562499999,
+            "forward_mean_milliseconds": 61.670485718749994,
+            "gpu_mean_milliseconds": 60.809333337601856,
+            "history_range": [
+              544,
+              575
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.46063146875000005,
+            "step_range": [
+              33,
+              64
+            ],
+            "unclassified_host_mean_milliseconds": 0.037235687500000336,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 61.11940759375,
+            "cpu_commit_mean_milliseconds": 0.0026457500000000005,
+            "cpu_encode_mean_milliseconds": 0.2817746562499999,
+            "forward_mean_milliseconds": 61.4481289375,
+            "gpu_mean_milliseconds": 60.6145976598782,
+            "history_range": [
+              576,
+              607
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.4455663125,
+            "step_range": [
+              65,
+              96
+            ],
+            "unclassified_host_mean_milliseconds": 0.044300937499999665,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 61.192401031250014,
+            "cpu_commit_mean_milliseconds": 0.0028725000000000005,
+            "cpu_encode_mean_milliseconds": 0.28446603125000003,
+            "forward_mean_milliseconds": 61.52225903125001,
+            "gpu_mean_milliseconds": 60.68973307537817,
+            "history_range": [
+              608,
+              639
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.44695965625000006,
+            "step_range": [
+              97,
+              128
+            ],
+            "unclassified_host_mean_milliseconds": 0.042519468749999734,
+            "valid_gpu_samples": 32
+          }
+        ],
+        "completion_wait": {
+          "max_milliseconds": 64.57191700000001,
+          "mean_milliseconds": 61.17940953125002,
+          "min_milliseconds": 60.528416,
+          "p50_milliseconds": 61.020042,
+          "p95_milliseconds": 62.051583,
+          "total_seconds": 7.830964420000003
+        },
+        "cpu_commit": {
+          "max_milliseconds": 0.010375,
+          "mean_milliseconds": 0.0034101718749999987,
+          "min_milliseconds": 0.00175,
+          "p50_milliseconds": 0.0026249999999999997,
+          "p95_milliseconds": 0.006208,
+          "total_seconds": 0.00043650199999999985
+        },
+        "cpu_encode": {
+          "max_milliseconds": 0.41112499999999996,
+          "mean_milliseconds": 0.29702760937500006,
+          "min_milliseconds": 0.262208,
+          "p50_milliseconds": 0.281083,
+          "p95_milliseconds": 0.381333,
+          "total_seconds": 0.03801953400000001
+        },
+        "forward": {
+          "max_milliseconds": 64.95016600000001,
+          "mean_milliseconds": 61.52244853906251,
+          "min_milliseconds": 60.868417,
+          "p50_milliseconds": 61.369082999999996,
+          "p95_milliseconds": 62.471625,
+          "total_seconds": 7.874873413000001
+        },
+        "gpu": {
+          "max_milliseconds": 64.02874999912456,
+          "mean_milliseconds": 60.66784928657398,
+          "min_milliseconds": 60.076583351474255,
+          "p50_milliseconds": 60.49929166329093,
+          "p95_milliseconds": 61.58116666483693,
+          "total_seconds": 7.76548470868147
+        },
+        "gpu_timing_note": "GPU execution and completion wait overlap; do not add their durations.",
+        "missing_gpu_samples": 0,
+        "percentile_method": "nearest_rank",
+        "sample_count": 128,
+        "sampling": {
+          "max_milliseconds": 0.558458,
+          "mean_milliseconds": 0.46240786718750027,
+          "min_milliseconds": 0.438,
+          "p50_milliseconds": 0.444583,
+          "p95_milliseconds": 0.530458,
+          "total_seconds": 0.059188207000000034
+        },
+        "unclassified_host": {
+          "max_milliseconds": 0.2539999999999973,
+          "mean_milliseconds": 0.042601226562499955,
+          "min_milliseconds": 0.014375999999996503,
+          "p50_milliseconds": 0.04570799999999847,
+          "p95_milliseconds": 0.048917000000002486,
+          "total_seconds": 0.005452956999999994
+        },
+        "unclassified_host_description": "Forward wall time minus CPU encode, commit, and completion wait; includes shared readback, autorelease, timing, and validation work, not an isolated readback measurement.",
+        "valid_gpu_samples": 128
+      },
+      "note": "Normal one-command-buffer execution. Sampling and forward are separate. GPU overlaps completion wait. Only the last prefill token computes/reads logits. System conditions are snapshots outside timed phases, not GPU frequency or temperature measurements.",
+      "prefill": {
+        "blocks": [
+          {
+            "completion_wait_mean_milliseconds": 102.18789450000001,
+            "cpu_commit_mean_milliseconds": 0.00497384375,
+            "cpu_encode_mean_milliseconds": 0.5574337187499999,
+            "forward_mean_milliseconds": 102.77443746874998,
+            "gpu_mean_milliseconds": 55.82568489808182,
+            "history_range": [
+              0,
+              31
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              1,
+              32
+            ],
+            "unclassified_host_mean_milliseconds": 0.024135406249997833,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 56.624462218750004,
+            "cpu_commit_mean_milliseconds": 0.00364053125,
+            "cpu_encode_mean_milliseconds": 0.34521615625,
+            "forward_mean_milliseconds": 56.976502625,
+            "gpu_mean_milliseconds": 56.11721875175135,
+            "history_range": [
+              32,
+              63
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              33,
+              64
+            ],
+            "unclassified_host_mean_milliseconds": 0.0031837187500017086,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 56.99721999999999,
+            "cpu_commit_mean_milliseconds": 0.00358475,
+            "cpu_encode_mean_milliseconds": 0.33411831249999996,
+            "forward_mean_milliseconds": 57.337462343750005,
+            "gpu_mean_milliseconds": 56.487739580006746,
+            "history_range": [
+              64,
+              95
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              65,
+              96
+            ],
+            "unclassified_host_mean_milliseconds": 0.0025392812500002557,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 56.31976684375,
+            "cpu_commit_mean_milliseconds": 0.0023618437500000007,
+            "cpu_encode_mean_milliseconds": 0.31122009375,
+            "forward_mean_milliseconds": 56.63502734375,
+            "gpu_mean_milliseconds": 55.795388018850645,
+            "history_range": [
+              96,
+              127
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              97,
+              128
+            ],
+            "unclassified_host_mean_milliseconds": 0.0016785625000005373,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 56.65373581250001,
+            "cpu_commit_mean_milliseconds": 0.004195187500000001,
+            "cpu_encode_mean_milliseconds": 0.34112109374999994,
+            "forward_mean_milliseconds": 57.002156218749995,
+            "gpu_mean_milliseconds": 56.12080208811676,
+            "history_range": [
+              128,
+              159
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              129,
+              160
+            ],
+            "unclassified_host_mean_milliseconds": 0.003104125000001753,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 57.0799414375,
+            "cpu_commit_mean_milliseconds": 0.0030755000000000005,
+            "cpu_encode_mean_milliseconds": 0.32110946875000007,
+            "forward_mean_milliseconds": 57.40638415625,
+            "gpu_mean_milliseconds": 56.54427604167722,
+            "history_range": [
+              160,
+              191
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              161,
+              192
+            ],
+            "unclassified_host_mean_milliseconds": 0.002257749999999472,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 57.044033781249986,
+            "cpu_commit_mean_milliseconds": 0.0032279687499999995,
+            "cpu_encode_mean_milliseconds": 0.32611981249999994,
+            "forward_mean_milliseconds": 57.37584634375001,
+            "gpu_mean_milliseconds": 56.52675390319928,
+            "history_range": [
+              192,
+              223
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              193,
+              224
+            ],
+            "unclassified_host_mean_milliseconds": 0.0024647812499997875,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 57.2939558125,
+            "cpu_commit_mean_milliseconds": 0.0027683437500000004,
+            "cpu_encode_mean_milliseconds": 0.32045312500000006,
+            "forward_mean_milliseconds": 57.619481781249995,
+            "gpu_mean_milliseconds": 56.77300260049378,
+            "history_range": [
+              224,
+              255
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              225,
+              256
+            ],
+            "unclassified_host_mean_milliseconds": 0.0023044999999982836,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 57.148031156250006,
+            "cpu_commit_mean_milliseconds": 0.002264375,
+            "cpu_encode_mean_milliseconds": 0.3093006562500001,
+            "forward_mean_milliseconds": 57.46127990625,
+            "gpu_mean_milliseconds": 56.628272135640145,
+            "history_range": [
+              256,
+              287
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              257,
+              288
+            ],
+            "unclassified_host_mean_milliseconds": 0.001683718750000859,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 57.40703125000001,
+            "cpu_commit_mean_milliseconds": 0.0027630625000000003,
+            "cpu_encode_mean_milliseconds": 0.3220417187500001,
+            "forward_mean_milliseconds": 57.73394018750002,
+            "gpu_mean_milliseconds": 56.88047656076378,
+            "history_range": [
+              288,
+              319
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              289,
+              320
+            ],
+            "unclassified_host_mean_milliseconds": 0.0021041562499994355,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 57.79101965625,
+            "cpu_commit_mean_milliseconds": 0.003808625000000001,
+            "cpu_encode_mean_milliseconds": 0.3346159375,
+            "forward_mean_milliseconds": 58.132342374999986,
+            "gpu_mean_milliseconds": 57.25381770753302,
+            "history_range": [
+              320,
+              351
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              321,
+              352
+            ],
+            "unclassified_host_mean_milliseconds": 0.002898156250000228,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 57.660057124999994,
+            "cpu_commit_mean_milliseconds": 0.00264459375,
+            "cpu_encode_mean_milliseconds": 0.31509762500000005,
+            "forward_mean_milliseconds": 57.979600218749994,
+            "gpu_mean_milliseconds": 57.13430599189451,
+            "history_range": [
+              352,
+              383
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              353,
+              384
+            ],
+            "unclassified_host_mean_milliseconds": 0.001800875000000559,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 57.92262375000002,
+            "cpu_commit_mean_milliseconds": 0.0032812187500000003,
+            "cpu_encode_mean_milliseconds": 0.3268502187499999,
+            "forward_mean_milliseconds": 58.25534896875,
+            "gpu_mean_milliseconds": 57.39229557002545,
+            "history_range": [
+              384,
+              415
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              385,
+              416
+            ],
+            "unclassified_host_mean_milliseconds": 0.0025937812499997586,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 57.96490375000001,
+            "cpu_commit_mean_milliseconds": 0.0025364687499999997,
+            "cpu_encode_mean_milliseconds": 0.31682287499999995,
+            "forward_mean_milliseconds": 58.286244781250005,
+            "gpu_mean_milliseconds": 57.443630204943474,
+            "history_range": [
+              416,
+              447
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              417,
+              448
+            ],
+            "unclassified_host_mean_milliseconds": 0.00198168750000058,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 58.202019625,
+            "cpu_commit_mean_milliseconds": 0.00249865625,
+            "cpu_encode_mean_milliseconds": 0.31769925000000004,
+            "forward_mean_milliseconds": 58.52439456250001,
+            "gpu_mean_milliseconds": 57.6704531267751,
+            "history_range": [
+              448,
+              479
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              449,
+              480
+            ],
+            "unclassified_host_mean_milliseconds": 0.0021770312500018433,
+            "valid_gpu_samples": 32
+          },
+          {
+            "completion_wait_mean_milliseconds": 60.24707809375001,
+            "cpu_commit_mean_milliseconds": 0.0024519062499999992,
+            "cpu_encode_mean_milliseconds": 0.31080334375,
+            "forward_mean_milliseconds": 60.56867981250001,
+            "gpu_mean_milliseconds": 57.697050780006975,
+            "history_range": [
+              480,
+              511
+            ],
+            "missing_gpu_samples": 0,
+            "sample_count": 32,
+            "sampling_mean_milliseconds": 0.0,
+            "step_range": [
+              481,
+              512
+            ],
+            "unclassified_host_mean_milliseconds": 0.008346468750001059,
+            "valid_gpu_samples": 32
+          }
+        ],
+        "completion_wait": {
+          "max_milliseconds": 1527.9832500000002,
+          "mean_milliseconds": 60.283985925781266,
+          "min_milliseconds": 55.438666,
+          "p50_milliseconds": 57.271,
+          "p95_milliseconds": 58.58225,
+          "total_seconds": 30.86540079400001
+        },
+        "cpu_commit": {
+          "max_milliseconds": 0.056292,
+          "mean_milliseconds": 0.0031298046875000004,
+          "min_milliseconds": 0.001375,
+          "p50_milliseconds": 0.002375,
+          "p95_milliseconds": 0.007125,
+          "total_seconds": 0.0016024600000000002
+        },
+        "cpu_encode": {
+          "max_milliseconds": 7.659,
+          "mean_milliseconds": 0.3381264628906251,
+          "min_milliseconds": 0.267917,
+          "p50_milliseconds": 0.315,
+          "p95_milliseconds": 0.379583,
+          "total_seconds": 0.17312074900000005
+        },
+        "forward": {
+          "max_milliseconds": 1536.3885000000002,
+          "mean_milliseconds": 60.629320568359425,
+          "min_milliseconds": 55.784833,
+          "p50_milliseconds": 57.604208,
+          "p95_milliseconds": 58.929375,
+          "total_seconds": 31.042212131000024
+        },
+        "gpu": {
+          "max_milliseconds": 63.91675001941621,
+          "mean_milliseconds": 56.768197997485004,
+          "min_milliseconds": 54.883250006241724,
+          "p50_milliseconds": 56.741041655186564,
+          "p95_milliseconds": 58.04412500583567,
+          "total_seconds": 29.065317374712322
+        },
+        "gpu_timing_note": "GPU execution and completion wait overlap; do not add their durations.",
+        "missing_gpu_samples": 0,
+        "percentile_method": "nearest_rank",
+        "sample_count": 512,
+        "sampling": {
+          "max_milliseconds": 0.0,
+          "mean_milliseconds": 0.0,
+          "min_milliseconds": 0.0,
+          "p50_milliseconds": 0.0,
+          "p95_milliseconds": 0.0,
+          "total_seconds": 0.0
+        },
+        "unclassified_host": {
+          "max_milliseconds": 0.689957999999935,
+          "mean_milliseconds": 0.004078375000000247,
+          "min_milliseconds": 0.00037400000000437084,
+          "p50_milliseconds": 0.00179200000000046,
+          "p95_milliseconds": 0.005250999999990846,
+          "total_seconds": 0.0020881280000001265
+        },
+        "unclassified_host_description": "Forward wall time minus CPU encode, commit, and completion wait; includes shared readback, autorelease, timing, and validation work, not an isolated readback measurement.",
+        "valid_gpu_samples": 512
+      },
+      "prefill_final_token_has_logits": true
+    },
+    "warmup": true
+  }
+}
