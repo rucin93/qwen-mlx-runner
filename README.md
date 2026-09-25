@@ -47,6 +47,14 @@ paired samples are slower, with candidate medians 4.21–8.10 times the scalar
 controls. Numerical checks pass, but the experiment stays outside inference.
 The measured R2 configuration remains selected on M5 Pro.
 
+Version 0.6.6 adds a separate [group-affine FP16/INT4 experiment](docs/group-affine-fp16.md).
+It retains packed Q4 weights, normalizes activations into FP16 and accumulates
+in FP32. A compensated variant uses otherwise unused matrix-tile positions for
+the rounding residual. This changes arithmetic and remains outside inference;
+its numerical and timing reports must be evaluated separately from model quality.
+Compensated variants pass the local synthetic error checks, but repeated M1
+timings do not establish a stable speedup. An M5 result is still required.
+
 Earlier evidence includes the [16.13 tokens/s ordinary-target measurement](docs/m5-pro.md),
 the [26.77 tokens/s first MTP result](docs/m5-mtp-v0.6.md), and the
 [controlled recovery from the 0.6.1 shared-matrix regression](docs/m5-kernel-comparison.md).
