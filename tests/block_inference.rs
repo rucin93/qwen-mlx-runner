@@ -21,6 +21,97 @@ fn near(actual: &[f32], expected: &[f32], label: &str) {
 
 #[test]
 #[ignore = "requires a real Apple Metal GPU"]
+fn wider_key_dimension_fallback_preserves_every_rollback_prefix() -> Result<()> {
+    // Exercise the K>128 fallback with a real hybrid checkpoint, including
+    // nonzero added channels. A dispatch-only test would miss bad engine views.
+    let source = fixture("tiny");
+    let temporary = tempfile::tempdir()?;
+    let mut config: serde_json::Value =
+        serde_json::from_slice(&std::fs::read(source.join("config.json"))?)?;
+    config["text_config"]["linear_key_head_dim"] = serde_json::json!(160);
+    std::fs::write(
+        temporary.path().join("config.json"),
+        serde_json::to_vec(&config)?,
+    )?;
+    let original = std::fs::read(source.join("model.safetensors"))?;
+    let header_size = u64::from_le_bytes(original[..8].try_into().unwrap()) as usize;
+    let mut header: serde_json::Value = serde_json::from_slice(&original[8..8 + header_size])?;
+    let original_data = &original[8 + header_size..];
+    let mut data = Vec::new();
+    for (name, tensor) in header.as_object_mut().unwrap() {
+        if name == "__metadata__" {
+            continue;
+        }
+        let start = data.len();
+        if name.contains("linear_attn.in_proj_qkv") || name.contains("linear_attn.conv1d") {
+            tensor["shape"][0] = serde_json::json!(352); // 2 * KH1 * K160 + VH2 * V16
+            let elements: usize = tensor["shape"]
+                .as_array()
+                .unwrap()
+                .iter()
+                .map(|n| n.as_u64().unwrap() as usize)
+                .product();
+            for i in 0..elements {
+                let value = ((i * 17 % 41) as f32 - 20.) / 256.;
+                data.extend_from_slice(&half::f16::from_f32(value).to_bits().to_le_bytes());
+            }
+        } else {
+            let range = tensor["data_offsets"].as_array().unwrap();
+            data.extend_from_slice(
+                &original_data
+                    [range[0].as_u64().unwrap() as usize..range[1].as_u64().unwrap() as usize],
+            );
+        }
+        tensor["data_offsets"] = serde_json::json!([start, data.len()]);
+    }
+    let mut encoded_header = serde_json::to_vec(&header)?;
+    encoded_header.resize(encoded_header.len().div_ceil(8) * 8, b' ');
+    let mut checkpoint = (encoded_header.len() as u64).to_le_bytes().to_vec();
+    checkpoint.extend(encoded_header);
+    checkpoint.extend(data);
+    std::fs::write(temporary.path().join("model.safetensors"), checkpoint)?;
+    let mut sequential = Engine::load(temporary.path(), 32)?;
+    let mut block = Engine::load(temporary.path(), 32)?;
+    let history = [5, 9, 13];
+    let candidates = [7, 21, 4, 30];
+    for width in 1..=4 {
+        for keep in 0..=width {
+            sequential.reset();
+            block.reset();
+            for token in history {
+                sequential.forward(token)?;
+                block.forward(token)?;
+            }
+            let output = block.verify_block(&candidates[..width])?;
+            for (i, &token) in candidates[..width].iter().enumerate() {
+                near(
+                    &output.logits[i],
+                    &sequential.forward(token)?,
+                    "wide-key block",
+                );
+            }
+            block.commit_block_prefix(keep)?;
+            sequential.reset();
+            for token in history
+                .into_iter()
+                .chain(candidates[..keep].iter().copied())
+            {
+                sequential.forward(token)?;
+            }
+            for token in [31, 11, 19] {
+                near(
+                    &block.forward(token)?,
+                    &sequential.forward(token)?,
+                    "wide-key rollback",
+                );
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+#[ignore = "requires a real Apple Metal GPU"]
 fn block_widths_match_independent_logits_and_sequential_normalized_hidden() -> Result<()> {
     for name in ["tiny", "tiny-q4", "tiny-bf16"] {
         let path = fixture(name);

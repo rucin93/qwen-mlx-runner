@@ -5,6 +5,14 @@ chat on M5 Pro / 48 GB, on external power, using the existing Qwen3.8-27B Q4
 checkpoint and this project's own Rust + Metal runtime. The observed baseline
 remains 16.1308 tokens/s; this document does not claim the new target is achieved.
 
+Follow-up: the user's 0.6.0 block-3 report now establishes 26.7659 sustained
+tokens/s versus 16.6282 for its paired sequential baseline, with matching greedy
+traces. [The audited budget](m5-mtp-v0.6.md) identifies target execution as 86.78%
+of decode time. The next bounded changes are shared Q4 unpacking for B2/B3 and
+register-resident multi-step DeltaNet with only necessary rollback snapshots.
+The later block-4 report has Low Power Mode enabled and cannot be compared
+directly to the block-3 result with it disabled.
+
 ## Evidence and approach
 
 The measured operation inventory implies 14,412,349,440 bytes of Q4 weights and

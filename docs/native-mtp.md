@@ -1,8 +1,11 @@
 # Native MTP: candidate toward 32 tokens/s
 
-The current measured M5 Pro result remains **16.13 tokens/s on external power**.
-This implementation adds native multi-token prediction and block verification;
-it does **not** establish 32 tokens/s or a speedup on a trained 27B model yet.
+The user-supplied M5 Pro 0.6.0 benchmark measures **26.77 sustained tokens/s with
+MTP**, versus **16.63** for sequential generation on the same target. Complete
+greedy traces agree across all five prompts. **The mixed-use 32 tokens/s goal
+is not reached yet.** See the [audited result and time budget](m5-mtp-v0.6.md).
+The [0.6.1 follow-up](performance-v0.6.1.md) reduces matrix and recurrent-state
+work; its full-model M5 throughput remains to be measured.
 
 Every matrix pass in the measured target graph streams approximately 14.41 GB
 of Q4 weights and BF16 metadata. The [Apple M5 Pro specification](https://www.apple.com/macbook-pro/specs/)
@@ -53,7 +56,9 @@ head all come from the target.
 
 ## Measure representative output
 
-Connect external power and keep other GPU generation stopped. This command runs
+Connect external power, disable Low Power Mode, and keep other GPU generation
+stopped. Confirm `low_power_mode: false` in the report: connection to a charger
+alone is not a measurement of that setting. This command runs
 five mixed Polish/English prompts, honors EOS, compares the ordinary target and
 MTP sequentially on the same loaded weights, and excludes warmups:
 
@@ -114,7 +119,7 @@ stderr. Omitting `--mtp` selects the ordinary engine.
   the optimized kernel mode and supported affine group sizes 32/64/128 or dense
   F16. Unsupported combinations fail before changing target history.
 - Recurrent prefix snapshots require additional GPU memory. All caches and
-snapshots are included in Metal's working-set checks; no OS limits are raised.
+  snapshots are included in Metal's working-set checks; no OS limits are raised.
 - Native MTP supports the separate sanitized one-layer adapter with shared
   embeddings. It does not reinterpret arbitrary model tensors as an adapter.
 - The trained 27B checkpoint cannot fit the local M1 test machine's safe budget.

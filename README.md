@@ -23,7 +23,7 @@ Target-machine throughput is documented through user-supplied M5 Pro results;
 local GPU verification uses an M1. Synthetic tests and microbenchmarks do not
 establish trained-model quality or target throughput.
 
-The latest user-reported M5 Pro / 48 GB result is **16.13 decode tokens/s on
+The earlier v0.5 user-reported M5 Pro / 48 GB result was **16.13 decode tokens/s on
 external power**, over 128 generated steps after warmup. It exceeds 15 tokens/s
 and is 10.75x the original approximately 1.5 tokens/s (11.11x the originally
 reported measured run of 1.45242). This is **one measured run with timing enabled**,
@@ -37,11 +37,13 @@ BF16 measurement cannot be attributed to a new kernel in v0.5; its active shader
 path is unchanged. Power conditions are the leading explanation, pending a
 controlled comparison on the same build.
 
-An **experimental native MTP path** now verifies blocks of up to four positions
-with shared weight reads. The default is one target token plus two proposals
-from the model's separate 239 MB MTP adapter. This is the next candidate for the
-requested approximately 32 tokens/s; **32 tokens/s has not been measured**.
-See [setup, mixed-prompt benchmark and limitations](docs/native-mtp.md).
+An **experimental native MTP path** verifies blocks of up to four positions with
+shared weight reads. The default is one target token plus two proposals from
+the separate 239 MB MTP adapter. The user's trained-model M5 measurement is
+**26.77 sustained tokens/s versus 16.63 sequentially (+61%)**, with matching
+greedy traces across five mixed prompts. **The mixed-use 32 tokens/s goal is
+not reached.** See the [audited result](docs/m5-mtp-v0.6.md) and
+[setup, mixed-prompt benchmark and limitations](docs/native-mtp.md).
 
 Earlier results and implementation evidence remain in the
 [first iteration](docs/performance-2026-09-25.md),

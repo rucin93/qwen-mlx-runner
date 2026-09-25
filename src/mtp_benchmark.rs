@@ -275,6 +275,11 @@ pub fn run(options: Options) -> Result<()> {
             "rendered_prompt": rendered, "prompt_token_ids": token_ids, "prompt_tokens": token_ids.len()}));
     }
     drop(tokenizer);
+    if crate::system_status::snapshot()["low_power_mode"] == true {
+        eprintln!(
+            "WARNING: macOS Low Power Mode is enabled. For peak-throughput comparisons, disable it before running this benchmark; connecting power alone does not establish that it is off. Power mode is recorded with each capture."
+        );
+    }
     eprintln!(
         "Loading target and MTP adapter once; {} prompts, {} measured runs per mode.",
         prompts.len(),

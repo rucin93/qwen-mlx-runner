@@ -117,6 +117,7 @@ const KERNELS: &[&str] = &[
     "conv_silu",
     "delta_norm",
     "delta_step",
+    "delta_step_block",
     "gated_rms",
     "split_q_gate",
     "head_rms",
@@ -576,6 +577,21 @@ impl Gpu {
                 }
             }
         }
+        if name == "delta_step_block" {
+            // The three outputs may share an allocation only as disjoint views.
+            // In particular, a snapshot must not overwrite the live state or a
+            // later token's inputs while other SIMD groups still consume them.
+            for out in [5, 6, 7] {
+                for i in 0..buffers.len() {
+                    if i != out && std::ptr::eq(buffers[i], buffers[out]) {
+                        ensure!(
+                            !ranges_overlap(offset(i), sizes[i], offset(out), sizes[out]),
+                            "{name}: output {out} overlaps buffer {i}"
+                        );
+                    }
+                }
+            }
+        }
         ensure!(
             !self.reference_kernels || !name.ends_with("_bf16"),
             "BF16 metadata dispatch is unavailable in reference mode"
@@ -713,6 +729,7 @@ impl Gpu {
             let outputs: &[usize] = match name {
                 "conv_silu" => &[2, 3],
                 "delta_step" => &[5, 6],
+                "delta_step_block" => &[5, 6, 7],
                 "split_q_gate" => &[1, 2],
                 "kv_append" => &[2, 3],
                 "delta_norm" | "head_rms" | "rope" | "softmax" => &[0],
@@ -723,7 +740,7 @@ impl Gpu {
                 "embed_f16" | "copy_f32" => &[1],
                 _ => &[2],
             };
-            let mut written: [&ResourceRef; 2] = [&***buffers.first().unwrap(); 2];
+            let mut written: [&ResourceRef; 3] = [&***buffers.first().unwrap(); 3];
             for (out, &index) in written.iter_mut().zip(outputs) {
                 *out = &**buffers[index];
             }
@@ -908,7 +925,7 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
         "matvec_affine" | "embed_affine" | "matvec_affine_bf16" | "embed_affine_bf16"
         | "delta_step" | "attn_scores" | "attn_values" => 4,
         "delta_norm" | "gated_rms" | "head_rms" | "kv_append" | "matmul_f16" => 3,
-        "rope" | "matmul_affine" | "matmul_affine_bf16" => 5,
+        "rope" | "matmul_affine" | "matmul_affine_bf16" | "delta_step_block" => 5,
         "add" | "swiglu" | "copy_f32" => 1,
         _ => bail!("Unknown GPU kernel {name}"),
     };
@@ -1064,7 +1081,7 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
             eps(2)?;
             (vec![f(product(&[2, n(0), n(1)])?)?], product(&[n(0), 32])?)
         }
-        "delta_step" => {
+        "delta_step" | "delta_step_block" => {
             positive(&[0, 1, 2, 3])?;
             ensure!(
                 n(1) % n(0) == 0,
@@ -1075,18 +1092,29 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
                 .checked_add(values)
                 .context("QKV shape overflow")?;
             ensure!(qkv <= u32::MAX as usize, "QKV index overflow");
-            (
-                vec![
-                    f(qkv)?,
-                    f(n(1))?,
-                    f(n(1))?,
-                    f(n(1))?,
-                    f(n(1))?,
-                    f(product(&[values, n(2)])?)?,
-                    f(values)?,
-                ],
-                product(&[values, 32])?,
-            )
+            let batch = if name == "delta_step_block" {
+                ensure!(n(2) <= 128, "DeltaNet block key dimension must be <=128");
+                ensure!(
+                    (1..=4).contains(&n(4)),
+                    "DeltaNet block width must be 1..=4"
+                );
+                n(4)
+            } else {
+                1
+            };
+            let mut sizes = vec![
+                f(product(&[qkv, batch])?)?,
+                f(product(&[n(1), batch])?)?,
+                f(product(&[n(1), batch])?)?,
+                f(n(1))?,
+                f(n(1))?,
+                f(product(&[values, n(2)])?)?,
+                f(product(&[values, batch])?)?,
+            ];
+            if name == "delta_step_block" {
+                sizes.push(f(product(&[values, n(2), batch])?)?);
+            }
+            (sizes, product(&[values, 32])?)
         }
         "gated_rms" => {
             positive(&[0, 1])?;

@@ -10,7 +10,9 @@ use super::{Engine, Matrix, Mixer, Scratch};
 use crate::gpu::DispatchEncoder;
 
 const MAX_BLOCK: usize = 4;
-const PREFIX_SLOTS: usize = MAX_BLOCK + 1;
+// The final prefix remains in each layer's live state; only rejected suffixes
+// need a saved prefix, so a width-B block stores prefixes 0 through B-1.
+const PREFIX_SLOTS: usize = MAX_BLOCK;
 
 /// Target outputs for a tentative block. `hidden` is after final target RMS.
 #[derive(Debug)]
@@ -433,14 +435,16 @@ impl Engine {
                         0,
                         snapshots.conv_elements,
                     )?;
-                    copy(
-                        &e,
-                        &d.state,
-                        0,
-                        &snapshots.state,
-                        0,
-                        snapshots.state_elements,
-                    )?;
+                    if kd > 128 {
+                        copy(
+                            &e,
+                            &d.state,
+                            0,
+                            &snapshots.state,
+                            0,
+                            snapshots.state_elements,
+                        )?;
+                    }
                     for i in 0..batch {
                         run(
                             "conv_silu",
@@ -458,38 +462,65 @@ impl Engine {
                             kh * 32,
                             128,
                         )?;
-                        run(
-                            "delta_step",
-                            &[&s.convolved, &s.a, &s.b, &d.alog, &d.dt, &d.state, &s.mixed],
+                        if i + 1 < batch {
+                            copy(
+                                &e,
+                                &d.conv_state,
+                                0,
+                                &snapshots.conv,
+                                (i + 1) * snapshots.conv_elements * 4,
+                                snapshots.conv_elements,
+                            )?;
+                        }
+                    }
+                    if kd <= 128 {
+                        e.encode(
+                            "delta_step_block",
                             &[
-                                i * qkv * 4,
-                                i * vh * 4,
-                                i * vh * 4,
-                                0,
-                                0,
-                                0,
-                                i * linear_width * 4,
+                                &s.convolved,
+                                &s.a,
+                                &s.b,
+                                &d.alog,
+                                &d.dt,
+                                &d.state,
+                                &s.mixed,
+                                &snapshots.state,
                             ],
-                            &[kh as u32, vh as u32, kd as u32, vd as u32],
+                            &[kh as u32, vh as u32, kd as u32, vd as u32, batch as u32],
                             linear_width * 32,
                             128,
                         )?;
-                        copy(
-                            &e,
-                            &d.conv_state,
-                            0,
-                            &snapshots.conv,
-                            (i + 1) * snapshots.conv_elements * 4,
-                            snapshots.conv_elements,
-                        )?;
-                        copy(
-                            &e,
-                            &d.state,
-                            0,
-                            &snapshots.state,
-                            (i + 1) * snapshots.state_elements * 4,
-                            snapshots.state_elements,
-                        )?;
+                    } else {
+                        for i in 0..batch {
+                            run(
+                                "delta_step",
+                                &[&s.convolved, &s.a, &s.b, &d.alog, &d.dt, &d.state, &s.mixed],
+                                &[
+                                    i * qkv * 4,
+                                    i * vh * 4,
+                                    i * vh * 4,
+                                    0,
+                                    0,
+                                    0,
+                                    i * linear_width * 4,
+                                ],
+                                &[kh as u32, vh as u32, kd as u32, vd as u32],
+                                linear_width * 32,
+                                128,
+                            )?;
+                            if i + 1 < batch {
+                                copy(
+                                    &e,
+                                    &d.state,
+                                    0,
+                                    &snapshots.state,
+                                    (i + 1) * snapshots.state_elements * 4,
+                                    snapshots.state_elements,
+                                )?;
+                            }
+                        }
+                    }
+                    for i in 0..batch {
                         run(
                             "gated_rms",
                             &[&s.mixed, &s.z, &d.norm, &s.gated],

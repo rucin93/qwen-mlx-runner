@@ -135,6 +135,52 @@ kernel void delta_step(device const float *qkv [[buffer(0)]], device const float
     output=simd_sum(output);
     if(lane==0) y[row]=output;
 }
+// B=1..4 causal updates with K<=128. Each lane retains its four state
+// elements across tokens. Prefix i is the state before input i; the final
+// prefix B remains in live state and therefore needs no snapshot copy.
+kernel void delta_step_block(device const float *qkv [[buffer(0)]], device const float *a [[buffer(1)]],
+                             device const float *b [[buffer(2)]], device const float *Alog [[buffer(3)]],
+                             device const float *dt [[buffer(4)]], device float *state [[buffer(5)]],
+                             device float *y [[buffer(6)]], device float *snapshots [[buffer(7)]],
+                             constant uint *p [[buffer(15)]], uint gid [[thread_position_in_grid]],
+                             ushort lane [[thread_index_in_simdgroup]]) {
+    uint row=gid/32, KH=p[0],VH=p[1],K=p[2],V=p[3],B=p[4],rows=VH*V;
+    if(row>=rows) return;
+    uint h=row/V,kh=h/(VH/KH),width=2*KH*K+rows;
+    float current[4];
+    for(uint j=0;j<4;++j) {
+        uint i=uint(lane)+j*32;
+        current[j]=i<K ? state[row*K+i] : 0.0f;
+    }
+    for(uint token=0;token<B;++token) {
+        uint qo=token*width+kh*K,ko=qo+KH*K,vo=token*width+2*KH*K+row;
+        float decay=exp(-exp(Alog[h])*softplus_stable(a[token*VH+h]+dt[h]));
+        float prediction=0;
+        for(uint j=0;j<4;++j) {
+            uint i=uint(lane)+j*32;
+            if(i<K) {
+                snapshots[token*rows*K+row*K+i]=current[j];
+                prediction+=current[j]*decay*qkv[ko+i];
+            }
+        }
+        float delta=(qkv[vo]-simd_sum(prediction))*sigmoid_stable(b[token*VH+h]);
+        float output=0;
+        for(uint j=0;j<4;++j) {
+            uint i=uint(lane)+j*32;
+            if(i<K) {
+                float next=current[j]*decay+qkv[ko+i]*delta;
+                current[j]=next;
+                output+=next*qkv[qo+i];
+            }
+        }
+        output=simd_sum(output);
+        if(lane==0) y[token*rows+row]=output;
+    }
+    for(uint j=0;j<4;++j) {
+        uint i=uint(lane)+j*32;
+        if(i<K) state[row*K+i]=current[j];
+    }
+}
 kernel void gated_rms(device const float *x [[buffer(0)]], device const float *z [[buffer(1)]],
                       device const float *w [[buffer(2)]], device float *y [[buffer(3)]],
                       constant uint *p [[buffer(15)]], uint gid [[thread_position_in_grid]],

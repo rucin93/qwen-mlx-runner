@@ -80,9 +80,74 @@ inline void block_affine(device const uint *w, device const M *scales,
 
 // Aligned Q4/g64 fast path follows the existing single-token accumulation
 // order exactly: 16 columns per lane, 512-column tiles, four rows per SIMD.
-// It holds each tile's four packed words and metadata across every RHS while
-// keeping only one RHS's 16 float inputs live. Host guarantees X % 16 = 0,
-// W % 8 = 0, rows % 4 = 0, cols % 512 = 0 and signed-int-safe products.
+// B1/B4 keep one RHS's inputs live; B2/B3 share unpacked weights across RHS.
+// Host guarantees X % 16 = 0, W % 8 = 0, rows % 4 = 0, cols % 512 = 0
+// and signed-int-safe products.
+// B2/B3 retain all RHS inputs so each row's four packed words are unpacked
+// once for every RHS. Dot/FMA/tile/reduction order matches the original aligned
+// path. B4 keeps the original schedule: the additional live inputs otherwise
+// cause a measured register-pressure regression on M1. B1 has no reuse benefit.
+inline float4 block_unpack_u16(ushort q) {
+    return float4(ushort4(q & ushort(0x000f), q & ushort(0x00f0),
+                         q & ushort(0x0f00), q & ushort(0xf000)));
+}
+template<uint B, typename M>
+inline void block_aligned_q4_shared(device const ushort *w, device const M *s,
+                                    device const M *bias, device const float *x,
+                                    device float *y, constant uint *p, uint gid, ushort lane) {
+    constexpr uint R = 4;
+    const int row = (int(gid) / 32) * R;
+    if (row >= int(p[0])) return;
+    const int rows = int(p[0]), cols = int(p[1]);
+    const int packed_stride = cols / 4, group_stride = cols / 64;
+    float totals[B][R];
+    #pragma unroll
+    for (uint b = 0; b < B; ++b) {
+        #pragma unroll
+        for (uint r = 0; r < R; ++r) totals[b][r] = 0.0f;
+    }
+    for (int tile = 0; tile < cols / 512; ++tile) {
+        const int col = tile * 512 + int(lane) * 16;
+        float4 a[B], c1[B], c2[B], d[B];
+        float xsum[B];
+        #pragma unroll
+        for (uint b = 0; b < B; ++b) {
+            device const float4 *xb =
+                reinterpret_cast<device const float4 *>(x + int(b) * cols + col);
+            const float4 xa = xb[0], xc1 = xb[1], xc2 = xb[2], xd = xb[3];
+            const float4 combined = xa + xc1 + xc2 + xd;
+            xsum[b] = combined.x + combined.y + combined.z + combined.w;
+            const float4 factors = float4(1.0f,0x1p-4f,0x1p-8f,0x1p-12f);
+            a[b] = xa * factors;
+            c1[b] = xc1 * factors;
+            c2[b] = xc2 * factors;
+            d[b] = xd * factors;
+        }
+        #pragma unroll
+        for (uint r = 0; r < R; ++r) {
+            const ushort4 packed = *reinterpret_cast<device const ushort4 *>(
+                w + (row + r) * packed_stride + col / 4);
+            const int gi = (row + r) * group_stride + col / 64;
+            const float scale = block_metadata(s[gi]), offset = block_metadata(bias[gi]);
+            const float4 qa = block_unpack_u16(packed.x), qb = block_unpack_u16(packed.y);
+            const float4 qc = block_unpack_u16(packed.z), qd = block_unpack_u16(packed.w);
+            #pragma unroll
+            for (uint b = 0; b < B; ++b) {
+                const float qdot = dot(qa, a[b]) + dot(qb, c1[b]) + dot(qc, c2[b]) + dot(qd, d[b]);
+                totals[b][r] += fma(scale, qdot, offset * xsum[b]);
+            }
+        }
+    }
+    #pragma unroll
+    for (uint b = 0; b < B; ++b) {
+        #pragma unroll
+        for (uint r = 0; r < R; ++r) {
+            const float total = simd_sum(totals[b][r]);
+            if (lane == 0) y[b * uint(rows) + uint(row) + r] = total;
+        }
+    }
+}
+
 inline float block_u16_dot4(ushort q, float4 x) {
     return dot(float4(ushort4(q & ushort(0x000f), q & ushort(0x00f0),
                              q & ushort(0x0f00), q & ushort(0xf000))), x);
@@ -95,6 +160,10 @@ template<uint B, typename M>
 inline void block_aligned_q4(device const ushort *w, device const M *scales,
                              device const M *bias, device const float *x,
                              device float *y, constant uint *p, uint gid, ushort lane) {
+    if (B == 2 || B == 3) {
+        block_aligned_q4_shared<B,M>(w,scales,bias,x,y,p,gid,lane);
+        return;
+    }
     const int row = (int(gid) / 32) * 4;
     if (row >= int(p[0])) return;
     const int rows = int(p[0]), cols = int(p[1]);
