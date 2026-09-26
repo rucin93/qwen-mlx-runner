@@ -187,6 +187,29 @@ fn wider_key_dimension_fallback_preserves_every_rollback_prefix() -> Result<()> 
             }
         }
     }
+    // Known prompts use the same checked K>128 scalar recurrence fallback,
+    // without asking the unsupported register-state kernel to execute.
+    sequential.reset();
+    block.reset();
+    for token in history {
+        sequential.forward(token)?;
+        block.forward(token)?;
+    }
+    let known: Vec<u32> = (0..16).map(|i| ((i * 13 + 7) % 64) as u32).collect();
+    let output = block.prefill_known_block(&known, true)?;
+    for (i, &token) in known.iter().enumerate() {
+        let (logits, hidden) = sequential.forward_with_hidden(token, true)?;
+        near(&output.logits[i], &logits, "wide-key known prompt logits");
+        near(&output.hidden[i], &hidden, "wide-key known prompt hidden");
+    }
+    for token in [31, 11, 19] {
+        near(
+            &block.forward(token)?,
+            &sequential.forward(token)?,
+            "wide-key known continuation",
+        );
+    }
+
     Ok(())
 }
 
@@ -483,6 +506,15 @@ fn unsupported_block_quantization_keeps_existing_sequential_history() -> Result<
         group16.allocated_bytes(),
         before_bytes,
         "unsupported block must not allocate scratch"
+    );
+
+    let error = group16.prefill_known_block(&[3; 16], false).unwrap_err();
+    assert!(error.to_string().contains("groups 32, 64 or 128"));
+    assert_eq!(group16.position(), 3);
+    assert_eq!(
+        group16.allocated_bytes(),
+        before_bytes,
+        "unsupported known prompt must not allocate scratch"
     );
     for token in [9, 17, 21] {
         near(

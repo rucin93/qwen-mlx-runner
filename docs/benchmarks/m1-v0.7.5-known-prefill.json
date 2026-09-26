@@ -1,0 +1,78 @@
+{
+  "kind": "grouped_known_prompt_local_evidence",
+  "device": "Apple M1",
+  "metadata": "lossless BF16",
+  "matrix_batch": 3,
+  "promoted": false,
+  "note": "Synthetic weights/fixtures only; no fullmodel M5 latency or coding quality result.",
+  "graph": {
+    "hidden_size": 512,
+    "layers": 4,
+    "prompt_tokens": 48,
+    "mixed_formats": true,
+    "samples_per_mode": 20,
+    "rotating_order": true,
+    "wall_median_ms": {
+      "b3": 35.0952085,
+      "b8": 28.53625,
+      "b16": 25.6826875
+    }
+  },
+  "matrices": [
+    {
+      "rows": 17408,
+      "cols": 5120,
+      "gpu_ms_per_48_inputs": {
+        "b3": 27.34870834,
+        "b8": 26.700374998,
+        "b16": 28.346979168
+      },
+      "bitwise_equal": true,
+      "samples_per_mode": 20
+    },
+    {
+      "rows": 5120,
+      "cols": 17408,
+      "gpu_ms_per_48_inputs": {
+        "b3": 28.326041669,
+        "b8": 27.540083342,
+        "b16": 29.449666668
+      },
+      "bitwise_equal": true,
+      "samples_per_mode": 20
+    },
+    {
+      "rows": 10240,
+      "cols": 5120,
+      "gpu_ms_per_48_inputs": {
+        "b3": 17.684375001,
+        "b8": 17.300395833,
+        "b16": 18.2441875
+      },
+      "bitwise_equal": true,
+      "samples_per_mode": 20
+    },
+    {
+      "rows": 5120,
+      "cols": 6144,
+      "gpu_ms_per_48_inputs": {
+        "b3": 11.320937505,
+        "b8": 11.114166664,
+        "b16": 11.045041676
+      },
+      "bitwise_equal": true,
+      "samples_per_mode": 20
+    },
+    {
+      "rows": 48,
+      "cols": 5120,
+      "gpu_ms_per_48_inputs": {
+        "b3": 0.513812498,
+        "b8": 0.533041668,
+        "b16": 0.508479163
+      },
+      "bitwise_equal": true,
+      "samples_per_mode": 20
+    }
+  ]
+}

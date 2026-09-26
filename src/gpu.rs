@@ -196,6 +196,7 @@ const KERNELS: &[&str] = &[
     "delta_norm",
     "delta_step",
     "delta_step_block",
+    "delta_step_prefill",
     "gated_rms",
     "split_q_gate",
     "head_rms",
@@ -670,11 +671,11 @@ impl Gpu {
                 }
             }
         }
-        if name == "delta_step_block" {
-            // The three outputs may share an allocation only as disjoint views.
+        if matches!(name, "delta_step_block" | "delta_step_prefill") {
+            // The outputs may share an allocation only as disjoint views.
             // In particular, a snapshot must not overwrite the live state or a
             // later token's inputs while other SIMD groups still consume them.
-            for out in [5, 6, 7] {
+            for out in 5..buffers.len() {
                 for i in 0..buffers.len() {
                     if i != out && std::ptr::eq(buffers[i], buffers[out]) {
                         ensure!(
@@ -826,7 +827,7 @@ impl Gpu {
             // Keep the correct side-effect set explicit for the dispatch ABI.
             let outputs: &[usize] = match name {
                 "conv_silu" => &[2, 3],
-                "delta_step" => &[5, 6],
+                "delta_step" | "delta_step_prefill" => &[5, 6],
                 "delta_step_block" => &[5, 6, 7],
                 "split_q_gate" => &[1, 2],
                 "kv_append" => &[2, 3],
@@ -1044,7 +1045,8 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
         "matvec_affine" | "embed_affine" | "matvec_affine_bf16" | "embed_affine_bf16"
         | "delta_step" | "attn_scores" | "attn_values" => 4,
         "delta_norm" | "gated_rms" | "head_rms" | "kv_append" | "matmul_f16" => 3,
-        "rope" | "matmul_affine" | "matmul_affine_bf16" | "delta_step_block" => 5,
+        "rope" | "matmul_affine" | "matmul_affine_bf16" | "delta_step_block"
+        | "delta_step_prefill" => 5,
         "add" | "swiglu" | "copy_f32" => 1,
         _ => bail!("Unknown GPU kernel {name}"),
     };
@@ -1200,7 +1202,7 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
             eps(2)?;
             (vec![f(product(&[2, n(0), n(1)])?)?], product(&[n(0), 32])?)
         }
-        "delta_step" | "delta_step_block" => {
+        "delta_step" | "delta_step_block" | "delta_step_prefill" => {
             positive(&[0, 1, 2, 3])?;
             ensure!(
                 n(1) % n(0) == 0,
@@ -1211,11 +1213,11 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
                 .checked_add(values)
                 .context("QKV shape overflow")?;
             ensure!(qkv <= u32::MAX as usize, "QKV index overflow");
-            let batch = if name == "delta_step_block" {
+            let batch = if matches!(name, "delta_step_block" | "delta_step_prefill") {
                 ensure!(n(2) <= 128, "DeltaNet block key dimension must be <=128");
                 ensure!(
-                    (1..=4).contains(&n(4)),
-                    "DeltaNet block width must be 1..=4"
+                    (1..=if name == "delta_step_prefill" { 16 } else { 4 }).contains(&n(4)),
+                    "invalid DeltaNet batch width"
                 );
                 n(4)
             } else {
@@ -1295,6 +1297,20 @@ fn dispatch_layout(name: &str, p: &[u32]) -> Result<(Vec<usize>, usize)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn known_prefill_abi_is_separate_and_has_no_snapshot_buffer() -> Result<()> {
+        for width in [8, 16] {
+            assert!(dispatch_layout("matmul_affine_bf16", &[7, 512, 4, 64, width]).is_err());
+        }
+        let (sizes, _) = dispatch_layout("delta_step_prefill", &[1, 2, 128, 16, 16])?;
+        assert_eq!(sizes.len(), 7);
+        assert_eq!(sizes[5], 2 * 16 * 128 * 4);
+        assert!(dispatch_layout("delta_step_block", &[1, 2, 128, 16, 16]).is_err());
+        assert!(dispatch_layout("delta_step_prefill", &[1, 2, 129, 16, 16]).is_err());
+        assert!(dispatch_layout("delta_step_prefill", &[1, 2, 128, 16, 17]).is_err());
+        Ok(())
+    }
+
     #[test]
     fn block_kernel_device_defaults_are_limited_to_measured_m5_pro() -> Result<()> {
         for (device_name, expected) in [

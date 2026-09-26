@@ -209,9 +209,32 @@ accepted defaults, JSON object mode, streaming semantics and explicit limits.
 
 Start the server above and copy [examples/opencode.json](examples/opencode.json)
 to `opencode.json` in the project you want OpenCode to work on, or merge its
-provider/model settings into your existing config. Then run `opencode` in that
-project. The config uses `@ai-sdk/openai-compatible`, the local `/v1` endpoint,
-and this model for both main and small-model tasks. No API key is needed.
+provider/model settings into your existing config. Start a new interactive
+session in that project with:
+
+```sh
+opencode -m qwen-metal/Qwen3.8-27B-4bit
+```
+
+The explicit model selects the local provider even if a previous session used
+another model. Add `--pure` to isolate external plugins while diagnosing a
+problem; this does not resolve slow prompt processing. The config uses
+`@ai-sdk/openai-compatible`, the local `/v1` endpoint, and this model for both
+main and small-model tasks. No API key is needed. If `curl` works but the TUI
+shows no answer, follow the [TUI checks](docs/openai-compatibility.md#when-curl-works-but-the-tui-shows-no-answer).
+
+Even `Hej` can become a large coding-agent prompt: an isolated OpenCode 1.15.12
+TUI capture rendered to **8,065 tokens** with system instructions and eleven
+tools, leaving only 127 output tokens in an 8,192-token context. Earlier M5 throughput runs
+used only 43–65 prompt tokens. From 0.7.4, `QWEN_METAL_LOG_REQUESTS=1` reports
+request stages immediately, including cancellation, so a long wait can be
+diagnosed before completion. See [OpenCode prompt cost and live diagnostics](docs/opencode-latency.md).
+
+Version 0.7.5 adds optional `--mtp-prefill-batch-size 8` or `16` for larger
+prompt batches while keeping MTP decode at three. The default remains unchanged.
+Use the [one-load comparison](docs/opencode-latency.md#short-comparison-on-the-target-mac)
+on the target Mac before enabling it; full-model M5 latency improvement is not
+yet established.
 
 From 0.7.2 the example enables reasoning at `medium` effort and preserves it
 through tool-call history with `interleaved.field: "reasoning_content"`.

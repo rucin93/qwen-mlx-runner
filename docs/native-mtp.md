@@ -124,13 +124,22 @@ The existing HTTP chat API and sampling fields work unchanged. `generate` also
 accepts `--mtp` and `--mtp-block-size`, printing acceptance/timing statistics to
 stderr. Omitting `--mtp` selects the ordinary engine.
 
+From 0.7.5, `serve` and `generate` also accept optional
+`--mtp-prefill-batch-size 8` or `16`. It groups known prompt positions without
+rollback snapshots, using the existing narrow matrix kernels; speculative
+decode still follows `--mtp-block-size`. Without the flag, prompt processing
+uses the original path. See the [short one-load comparison](opencode-latency.md#short-comparison-on-the-target-mac)
+before enabling this candidate on M5. Local synthetic correctness and timing
+do not establish full-model M5 latency improvement.
+
 ## Limits and verification
 
 - MTP acceptance depends on the prompt and sampling settings. Low acceptance
   can make this path slower. Compare actual outputs from your use cases.
 - MTP currently resets both caches per request, including cancellation/error
   exits. Recent-prefix reuse remains available on the ordinary path.
-- Block width is limited to 1–4; the native default is 3. Block dispatch requires
+- Speculative block width is limited to 1–4; the native default is 3. The optional
+  known-prompt path supports 8/16 with tails of 1–16. Block dispatch requires
   the optimized kernel mode and supported affine group sizes 32/64/128 or dense
   F16. Unsupported combinations fail before changing target history.
 - Recurrent prefix snapshots require additional GPU memory. All caches and

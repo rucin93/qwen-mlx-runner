@@ -1,0 +1,114 @@
+{
+  "kind": "rejected_wide_prompt_matrix_microbenchmark",
+  "device": "Apple M1",
+  "precision": "Q4/g64 lossless BF16 metadata",
+  "iterations_per_mode": 20,
+  "warmups": 4,
+  "order": "rotating B3/B8/B16",
+  "bitwise_equal_to_b3": true,
+  "promoted": false,
+  "reason": "Broad projections are slower on M1 for both bounded schedules; removed from runtime candidate",
+  "note": "Synthetic weights and real dimensions; one command per48inputs; no fullmodel or M5 result. Numeric timings transcribed from live test output.",
+  "records": [
+    {
+      "schedule": "row1",
+      "rows": 17408,
+      "cols": 5120,
+      "gpu_ms_per_48_inputs": {
+        "b3": 26.833208336,
+        "b8": 52.909604172,
+        "b16": 66.854625002
+      }
+    },
+    {
+      "schedule": "row1",
+      "rows": 5120,
+      "cols": 17408,
+      "gpu_ms_per_48_inputs": {
+        "b3": 28.194333332,
+        "b8": 53.284104164,
+        "b16": 68.332604176
+      }
+    },
+    {
+      "schedule": "row1",
+      "rows": 10240,
+      "cols": 5120,
+      "gpu_ms_per_48_inputs": {
+        "b3": 15.853062498,
+        "b8": 31.175812495,
+        "b16": 39.326645834
+      }
+    },
+    {
+      "schedule": "row1",
+      "rows": 5120,
+      "cols": 6144,
+      "gpu_ms_per_48_inputs": {
+        "b3": 9.819520834,
+        "b8": 18.825395833,
+        "b16": 23.668250004
+      }
+    },
+    {
+      "schedule": "row1",
+      "rows": 48,
+      "cols": 5120,
+      "gpu_ms_per_48_inputs": {
+        "b3": 0.521729169,
+        "b8": 0.233395833,
+        "b16": 0.199375005
+      }
+    },
+    {
+      "schedule": "row2",
+      "rows": 17408,
+      "cols": 5120,
+      "gpu_ms_per_48_inputs": {
+        "b3": 29.169770831,
+        "b8": 42.714874995,
+        "b16": 46.736249999
+      }
+    },
+    {
+      "schedule": "row2",
+      "rows": 5120,
+      "cols": 17408,
+      "gpu_ms_per_48_inputs": {
+        "b3": 30.140937502,
+        "b8": 42.363354172,
+        "b16": 46.361687499
+      }
+    },
+    {
+      "schedule": "row2",
+      "rows": 10240,
+      "cols": 5120,
+      "gpu_ms_per_48_inputs": {
+        "b3": 17.039708335,
+        "b8": 24.353479166,
+        "b16": 26.947270839
+      }
+    },
+    {
+      "schedule": "row2",
+      "rows": 5120,
+      "cols": 6144,
+      "gpu_ms_per_48_inputs": {
+        "b3": 9.88856249,
+        "b8": 14.69170834,
+        "b16": 16.724375004
+      }
+    },
+    {
+      "schedule": "row2",
+      "rows": 48,
+      "cols": 5120,
+      "gpu_ms_per_48_inputs": {
+        "b3": 0.548937503,
+        "b8": 0.460916672,
+        "b16": 0.483020835
+      }
+    }
+  ]
+}
