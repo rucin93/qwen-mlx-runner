@@ -61,6 +61,43 @@ reduce the requested budget avoids the previous 2048-token example limit.
 [pinned limit schema](https://github.com/anomalyco/opencode/blob/fe3f3a41f79ad292cc3c7c629567385a20ec5130/packages/core/src/v1/config/provider.ts#L47-L52),
 [pinned reserve schema](https://github.com/anomalyco/opencode/blob/fe3f3a41f79ad292cc3c7c629567385a20ec5130/packages/core/src/v1/config/config.ts#L149-L166).
 
+## When curl works but the TUI shows no answer
+
+Start a new interactive session from the directory containing the local
+provider's `opencode.json`:
+
+```sh
+opencode --pure -m qwen-metal/Qwen3.8-27B-4bit
+```
+
+Ask `Odpowiedz jednym słowem: DZIALA`. On 2026-09-26, the user confirmed that
+this invocation displayed an answer on the M5 Pro after ordinary TUI startup
+had shown none, while direct `curl` requests worked. This is a manual
+user-reported check of that session, not a full trained-model quality test.
+
+`--pure` disables external plugins for this process without editing global
+configuration or uninstalling anything. It retains OpenCode's built-in tools;
+the configured reasoning effort is unchanged. The explicit `-m` also removes
+saved model selection as a variable. Keep this invocation as the working
+baseline.
+
+To distinguish plugin interference from model/session selection, start another
+new session with the same explicit model and only remove `--pure`:
+
+```sh
+opencode -m qwen-metal/Qwen3.8-27B-4bit
+```
+
+If only this second invocation fails, investigate the active external plugins
+and their agent/model overrides. If both work, investigate the original
+session's selected model, agent and history. Success with the first command
+alone does not identify a particular plugin as the cause.
+
+This TUI issue is separate from the OpenCode 1.15.12 noninteractive `opencode run`
+event-drain limitation documented below. The TUI streams parts through a
+different client lifecycle. A completed exported session in the CLI fixture
+does not prove that a user saw an answer in either interface.
+
 ## Accepted requests
 
 Optional `null` values are generally treated as omitted. `model` and a nonempty

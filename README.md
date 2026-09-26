@@ -209,9 +209,19 @@ accepted defaults, JSON object mode, streaming semantics and explicit limits.
 
 Start the server above and copy [examples/opencode.json](examples/opencode.json)
 to `opencode.json` in the project you want OpenCode to work on, or merge its
-provider/model settings into your existing config. Then run `opencode` in that
-project. The config uses `@ai-sdk/openai-compatible`, the local `/v1` endpoint,
-and this model for both main and small-model tasks. No API key is needed.
+provider/model settings into your existing config. Start a new interactive
+session in that project with:
+
+```sh
+opencode --pure -m qwen-metal/Qwen3.8-27B-4bit
+```
+
+`--pure` disables external OpenCode plugins for this invocation; the explicit
+model selects the local provider even if a previous session used another model.
+Reasoning and built-in tools remain available. The config uses
+`@ai-sdk/openai-compatible`, the local `/v1` endpoint, and this model for both
+main and small-model tasks. No API key is needed. If `curl` works but the TUI
+shows no answer, follow the [TUI checks](docs/openai-compatibility.md#when-curl-works-but-the-tui-shows-no-answer).
 
 From 0.7.2 the example enables reasoning at `medium` effort and preserves it
 through tool-call history with `interleaved.field: "reasoning_content"`.
