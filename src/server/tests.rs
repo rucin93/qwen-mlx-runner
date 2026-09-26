@@ -40,6 +40,7 @@ fn app() -> Router {
     let (sender, receiver) = mpsc::sync_channel(QUEUE_CAPACITY);
     std::thread::spawn(move || worker(Box::new(TestEngine), receiver));
     router(ServerState {
+        request_log: None,
         sender,
         model: "test-model".into(),
         vocab_size: Some(1000),
@@ -237,6 +238,7 @@ fn dropped_client_cancels_generation_at_empty_poll() {
     sender
         .send(Job {
             queued_at: Instant::now(),
+            trace: None,
             request: GenerationRequest {
                 messages: vec![Message {
                     role: "user".into(),
@@ -322,6 +324,7 @@ fn script_app(text: &str) -> (Router, std::sync::mpsc::Receiver<GenerationReques
     std::thread::spawn(move || worker(Box::new(engine), receiver));
     (
         router(ServerState {
+            request_log: None,
             sender,
             model: "test-model".into(),
             vocab_size: Some(1000),
@@ -547,6 +550,7 @@ async fn uncapped_http_output_uses_remaining_context_in_both_engines() {
         let (sender, receiver) = mpsc::sync_channel(QUEUE_CAPACITY);
         std::thread::spawn(move || worker(engine, receiver));
         let app = router(ServerState {
+            request_log: None,
             sender,
             model: model.clone(),
             vocab_size,
@@ -799,6 +803,7 @@ async fn context_overflow_is_400_before_streaming_or_generation() {
         let (sender, receiver) = mpsc::sync_channel(QUEUE_CAPACITY);
         std::thread::spawn(move || worker(Box::new(ContextEngine), receiver));
         let app = router(ServerState {
+            request_log: None,
             sender,
             model: "test-model".into(),
             vocab_size: None,
@@ -897,6 +902,7 @@ async fn opencode_sdk_tool_round_trip() {
         axum::serve(
             listener,
             router(ServerState {
+                request_log: None,
                 sender,
                 model: "test-model".into(),
                 vocab_size: Some(1000),
@@ -1013,6 +1019,7 @@ async fn opencode_cli_reasoning_and_tool_history() {
         axum::serve(
             listener,
             router(ServerState {
+                request_log: None,
                 sender,
                 model: "Qwen3.8-27B-4bit".into(),
                 vocab_size: None,
@@ -1047,4 +1054,263 @@ async fn opencode_cli_reasoning_and_tool_history() {
     );
     assert_eq!(completed.load(Ordering::Relaxed), 2);
     println!("{}", String::from_utf8_lossy(&run.stdout));
+}
+
+type CapturedLogs = Arc<std::sync::Mutex<Vec<Value>>>;
+
+fn logged_app(
+    engine: Box<dyn TextGenerator>,
+) -> (Router, CapturedLogs, tokio::sync::oneshot::Receiver<()>) {
+    let logs = Arc::new(std::sync::Mutex::new(Vec::new()));
+    let sink = logs.clone();
+    let (sender, receiver) = mpsc::sync_channel(QUEUE_CAPACITY);
+    let (finished, done) = tokio::sync::oneshot::channel();
+    std::thread::spawn(move || {
+        worker(engine, receiver);
+        let _ = finished.send(());
+    });
+    (
+        router(ServerState {
+            sender,
+            model: "test-model".into(),
+            vocab_size: Some(1000),
+            request_log: Some(Arc::new(move |event| sink.lock().unwrap().push(event))),
+        }),
+        logs,
+        done,
+    )
+}
+
+struct LifecycleEngine {
+    entered: Option<tokio::sync::oneshot::Sender<()>>,
+    release: mpsc::Receiver<()>,
+    invalid: bool,
+}
+impl TextGenerator for LifecycleEngine {
+    fn model_id(&self) -> &str {
+        "test-model"
+    }
+    fn prepare_request(&self, request: &mut GenerationRequest) -> Result<()> {
+        if self.invalid {
+            bail!("private prompt in prepare error");
+        }
+        request.max_tokens = 23;
+        Ok(())
+    }
+    fn generate(
+        &mut self,
+        _: &GenerationRequest,
+        on_text: &mut dyn FnMut(&str) -> bool,
+    ) -> Result<GenerationOutput> {
+        on_text("");
+        on_text("private thought</think>private answer");
+        on_text(" more private answer");
+        self.entered.take().unwrap().send(()).unwrap();
+        self.release.recv().unwrap();
+        if !on_text("") {
+            bail!("private cancelled error");
+        }
+        Ok(GenerationOutput {
+            text: "private thought</think>private answer more private answer".into(),
+            prompt_tokens: 2,
+            completion_tokens: 3,
+            finish_reason: "stop".into(),
+            prefill_seconds: 0.1,
+            decode_seconds: 0.2,
+        })
+    }
+}
+
+async fn lifecycle_response(app: Router) -> Response {
+    app.oneshot(Request::builder().method("POST").uri("/v1/chat/completions")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(json!({"model":"test-model","messages":[{"role":"user","content":"private prompt"}],"stream":true,"enable_thinking":true,"max_tokens":100,"stream_options":{"include_obfuscation":false}}).to_string())).unwrap()).await.unwrap()
+}
+
+#[tokio::test]
+async fn lifecycle_logs_are_visible_before_generation_completes() {
+    // Moving all diagnostics back after generate() would lose these stage events.
+    let (entered, started) = tokio::sync::oneshot::channel();
+    let (release, blocked) = mpsc::channel();
+    let (app, logs, done) = logged_app(Box::new(LifecycleEngine {
+        entered: Some(entered),
+        release: blocked,
+        invalid: false,
+    }));
+    let response = lifecycle_response(app).await;
+    started.await.unwrap();
+    let before = logs.lock().unwrap().clone();
+    release.send(()).unwrap();
+    let bytes = to_bytes(response.into_body(), 100_000).await.unwrap();
+    assert!(
+        String::from_utf8(bytes.to_vec())
+            .unwrap()
+            .contains("[DONE]")
+    );
+    let stages: Vec<_> = before
+        .iter()
+        .map(|v| v["event"].as_str().unwrap())
+        .collect();
+    assert_eq!(
+        stages,
+        [
+            "admission",
+            "worker_start",
+            "generation_start",
+            "first_model_text",
+            "first_reasoning",
+            "first_content"
+        ]
+    );
+    assert!(before.iter().all(|v| v["id"] == before[0]["id"]));
+    assert_eq!(before[0]["message_count"], 1);
+    assert_eq!(before[0]["tool_count"], 0);
+    assert_eq!(before[0]["message_content_bytes"], 14);
+    assert_eq!(before[2]["max_tokens"], 23);
+    assert!(before[1]["queue_seconds"].as_f64().unwrap() >= 0.0);
+    assert!(before[2]["prepare_seconds"].as_f64().unwrap() >= 0.0);
+    done.await.unwrap();
+    let all = logs.lock().unwrap().clone();
+    assert_eq!(all.iter().filter(|v| v["event"] == "terminal").count(), 1);
+    assert!(
+        all.iter()
+            .any(|v| v["event"] == "terminal" && v["status"] == "completed")
+    );
+    assert!(
+        all.iter()
+            .any(|v| v["kind"] == "request_timing" && v["timings"]["prefill_seconds"] == 0.1)
+    );
+    assert!(!serde_json::to_string(&all).unwrap().contains("private"));
+}
+
+#[tokio::test]
+async fn lifecycle_logs_cancelled_immediately_when_stream_client_drops() {
+    // Waiting until the blocked generator returns would hide a disconnect.
+    let (entered, started) = tokio::sync::oneshot::channel();
+    let (release, blocked) = mpsc::channel();
+    let (app, logs, done) = logged_app(Box::new(LifecycleEngine {
+        entered: Some(entered),
+        release: blocked,
+        invalid: false,
+    }));
+    let response = lifecycle_response(app).await;
+    started.await.unwrap();
+    drop(response);
+    let before_release = logs.lock().unwrap().clone();
+    release.send(()).unwrap();
+    done.await.unwrap();
+    assert_eq!(
+        logs.lock()
+            .unwrap()
+            .iter()
+            .filter(|v| v["event"] == "terminal")
+            .count(),
+        1
+    );
+    let terminals: Vec<_> = before_release
+        .iter()
+        .filter(|v| v["event"] == "terminal")
+        .collect();
+    assert_eq!(
+        terminals.len(),
+        1,
+        "disconnect must be logged even while generation is blocked"
+    );
+    assert_eq!(terminals[0]["status"], "cancelled");
+    assert_eq!(terminals[0]["code"], "client_disconnected");
+    assert!(
+        !serde_json::to_string(&before_release)
+            .unwrap()
+            .contains("private")
+    );
+}
+
+#[tokio::test]
+async fn lifecycle_logs_prepare_error_without_exposing_error_text() {
+    // The prepare-error early continue used to discard every diagnostic.
+    let (_release, blocked) = mpsc::channel();
+    let (app, logs, done) = logged_app(Box::new(LifecycleEngine {
+        entered: None,
+        release: blocked,
+        invalid: true,
+    }));
+    let response = lifecycle_response(app).await;
+    assert_eq!(response.status(), StatusCode::BAD_REQUEST);
+    let body: Value =
+        serde_json::from_slice(&to_bytes(response.into_body(), 100_000).await.unwrap()).unwrap();
+    assert_eq!(body["error"]["code"], "invalid_value");
+    done.await.unwrap();
+    let logs = logs.lock().unwrap();
+    let terminal: Vec<_> = logs.iter().filter(|v| v["event"] == "terminal").collect();
+    assert_eq!(terminal.len(), 1);
+    assert_eq!(terminal[0]["status"], "error");
+    assert_eq!(terminal[0]["stage"], "prepare");
+    assert_eq!(terminal[0]["code"], "invalid_value");
+    assert!(!logs.iter().any(|v| v["event"] == "generation_start"));
+    assert!(!serde_json::to_string(&*logs).unwrap().contains("private"));
+}
+
+#[tokio::test]
+async fn lifecycle_logs_only_first_tool_readiness_without_names_or_arguments() {
+    let (app, logs, done) = logged_app(Box::new(ScriptEngine {
+        text: "<tool_call>{\"name\":\"read_file\",\"arguments\":{\"path\":\"private-one\"}}</tool_call><tool_call>{\"name\":\"read_file\",\"arguments\":{\"path\":\"private-two\"}}</tool_call>".into(),
+        inspect: None,
+    }));
+    let (status, body) = post(app, tool_payload(false)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    assert_eq!(
+        serde_json::from_str::<Value>(&body).unwrap()["choices"][0]["message"]["tool_calls"]
+            .as_array()
+            .unwrap()
+            .len(),
+        2
+    );
+    done.await.unwrap();
+    let logs = logs.lock().unwrap();
+    assert_eq!(
+        logs.iter()
+            .filter(|v| v["event"] == "first_tool_call")
+            .count(),
+        1
+    );
+    assert_eq!(logs[0]["tool_count"], 1);
+    assert!(logs[0]["tool_bytes"].as_u64().unwrap() > 0);
+    assert!(
+        logs[0]["message_bytes"].as_u64().unwrap()
+            > logs[0]["message_content_bytes"].as_u64().unwrap()
+    );
+    assert!(
+        logs.iter()
+            .all(|v| v["engine_version"] == env!("CARGO_PKG_VERSION"))
+    );
+    let serialized = serde_json::to_string(&*logs).unwrap();
+    for private in ["private-one", "private-two", "read_file", "README.md"] {
+        assert!(!serialized.contains(private));
+    }
+}
+
+#[tokio::test]
+async fn lifecycle_logs_processing_error_and_preserves_http_error() {
+    let (app, logs, done) = logged_app(Box::new(ScriptEngine {
+        text: "private invalid json".into(),
+        inspect: None,
+    }));
+    let (status, body) = post(app, json!({"model":"test-model","messages":[{"role":"user","content":"private prompt"}],"response_format":{"type":"json_object"}})).await;
+    assert_eq!(status, StatusCode::INTERNAL_SERVER_ERROR);
+    assert_eq!(
+        serde_json::from_str::<Value>(&body).unwrap()["error"]["code"],
+        "generation_error"
+    );
+    done.await.unwrap();
+    let logs = logs.lock().unwrap();
+    let terminal: Vec<_> = logs.iter().filter(|v| v["event"] == "terminal").collect();
+    assert_eq!(terminal.len(), 1);
+    assert_eq!(terminal[0]["status"], "error");
+    assert_eq!(terminal[0]["stage"], "generation");
+    assert_eq!(terminal[0]["code"], "generation_error");
+    assert!(
+        logs.iter()
+            .any(|v| v["kind"] == "request_timing" && v["finish_reason"] == "error")
+    );
+    assert!(!serde_json::to_string(&*logs).unwrap().contains("private"));
 }

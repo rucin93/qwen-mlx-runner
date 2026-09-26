@@ -24,8 +24,10 @@ use crate::chat::{GenerationOutput, GenerationRequest, Message, TextGenerator};
 
 mod output;
 mod request;
+mod trace;
 use output::{Delta, OutputProcessor, Reply};
 use request::{ParsedRequest, RequestError, ResponseFormat, StreamOptions};
+use trace::{RequestLog, RequestTrace};
 
 const QUEUE_CAPACITY: usize = 4;
 const EVENT_CAPACITY: usize = 16;
@@ -33,12 +35,14 @@ static COMPLETION_SEQUENCE: AtomicU64 = AtomicU64::new(0);
 
 #[derive(Clone)]
 struct ServerState {
+    request_log: Option<RequestLog>,
     sender: SyncSender<Job>,
     model: String,
     vocab_size: Option<usize>,
 }
 
 struct Job {
+    trace: Option<RequestTrace>,
     queued_at: Instant,
     request: GenerationRequest,
     stop: Vec<String>,
@@ -67,21 +71,51 @@ struct RequestTiming {
     total_seconds: f64,
 }
 impl RequestTiming {
-    fn ready(&mut self, delta: &Delta, start: Instant) {
+    fn ready(&mut self, delta: &Delta, start: Instant, trace: Option<&RequestTrace>) {
         let field = match delta {
             Delta::Reasoning(text) if !text.trim().is_empty() => &mut self.first_reasoning_seconds,
             Delta::Content(text) if !text.trim().is_empty() => &mut self.first_content_seconds,
             Delta::Tool(_) => &mut self.first_tool_call_seconds,
             _ => return,
         };
-        field.get_or_insert_with(|| start.elapsed().as_secs_f64());
+        if field.is_none() {
+            let seconds = start.elapsed().as_secs_f64();
+            *field = Some(seconds);
+            if let Some(trace) = trace {
+                let event = match delta {
+                    Delta::Reasoning(_) => "first_reasoning",
+                    Delta::Content(_) => "first_content",
+                    Delta::Tool(_) => "first_tool_call",
+                };
+                trace.event(event, json!({"ready_seconds":seconds}));
+            }
+        }
+    }
+
+    fn model_text(&mut self, start: Instant, trace: Option<&RequestTrace>) {
+        if self.first_model_text_seconds.is_none() {
+            let seconds = start.elapsed().as_secs_f64();
+            self.first_model_text_seconds = Some(seconds);
+            if let Some(trace) = trace {
+                trace.event(
+                    "first_model_text",
+                    json!({"first_model_text_seconds":seconds}),
+                );
+            }
+        }
     }
 }
 
-struct CancelOnDrop(Arc<AtomicBool>);
+struct CancelOnDrop {
+    cancelled: Arc<AtomicBool>,
+    trace: Option<RequestTrace>,
+}
 impl Drop for CancelOnDrop {
     fn drop(&mut self) {
-        self.0.store(true, Ordering::Relaxed);
+        self.cancelled.store(true, Ordering::Relaxed);
+        if let Some(trace) = &self.trace {
+            trace.terminal("cancelled", "client", "client_disconnected", json!({}));
+        }
     }
 }
 
@@ -96,6 +130,8 @@ pub async fn serve(engine: Box<dyn TextGenerator>, address: SocketAddr) -> Resul
         .name("qwen-generation".into())
         .spawn(move || worker(engine, receiver))?;
     let app = router(ServerState {
+        request_log: (std::env::var("QWEN_METAL_LOG_REQUESTS").as_deref() == Ok("1"))
+            .then(|| Arc::new(|value| eprintln!("{value}")) as RequestLog),
         sender,
         model,
         vocab_size,
@@ -115,16 +151,24 @@ fn router(state: ServerState) -> Router {
 }
 
 fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
-    let log_requests = std::env::var("QWEN_METAL_LOG_REQUESTS").as_deref() == Ok("1");
     while let Ok(mut job) = receiver.recv() {
         if job.cancelled.load(Ordering::Relaxed) || job.events.is_closed() {
+            if let Some(trace) = &job.trace {
+                trace.terminal("cancelled", "queue", "client_disconnected", json!({}));
+            }
             continue;
         }
         let mut timing = RequestTiming {
             queue_seconds: job.queued_at.elapsed().as_secs_f64(),
             ..Default::default()
         };
-        let mut metadata = log_requests.then(|| json!({"kind":"request_timing","id":job.id,"model":engine.model_id(),"message_count":job.request.messages.len(),"tool_count":job.request.tools.definitions.len(),"thinking":job.request.enable_thinking,"reasoning_effort":job.request.reasoning_effort}));
+        if let Some(trace) = &job.trace {
+            trace.event(
+                "worker_start",
+                json!({"queue_seconds":timing.queue_seconds}),
+            );
+        }
+        let mut metadata = job.trace.as_ref().map(RequestTrace::metadata);
         let prepare_started = Instant::now();
         if job.response_format == ResponseFormat::JsonObject {
             let instruction = "Respond with one valid JSON object only. Do not use Markdown code fences or text outside the JSON object.";
@@ -156,6 +200,11 @@ fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
             } else {
                 "invalid_value"
             };
+            timing.prepare_seconds = prepare_started.elapsed().as_secs_f64();
+            timing.total_seconds = job.queued_at.elapsed().as_secs_f64();
+            if let Some(trace) = &job.trace {
+                trace.terminal("error", "prepare", code, json!({"timings":timing}));
+            }
             let _ = job
                 .events
                 .blocking_send(WorkerEvent::InvalidRequest(RequestError {
@@ -170,7 +219,18 @@ fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
             metadata["max_tokens"] = json!(job.request.max_tokens);
         }
         if job.events.blocking_send(WorkerEvent::Ready).is_err() {
+            if let Some(trace) = &job.trace {
+                trace.terminal(
+                    "cancelled",
+                    "prepare",
+                    "client_disconnected",
+                    json!({"timings":timing}),
+                );
+            }
             continue;
+        }
+        if let Some(trace) = &job.trace {
+            trace.event("generation_start", json!({"prepare_seconds":timing.prepare_seconds,"max_tokens":job.request.max_tokens}));
         }
         let mut processor = OutputProcessor::new(
             job.stop,
@@ -188,14 +248,12 @@ fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
                 if part.is_empty() {
                     return !processor.stopped() && processing_error.is_none();
                 }
-                timing
-                    .first_model_text_seconds
-                    .get_or_insert_with(|| job.queued_at.elapsed().as_secs_f64());
+                timing.model_text(job.queued_at, job.trace.as_ref());
                 match processor.push(part) {
                     Ok(deltas) => {
                         if !buffered {
                             for delta in deltas {
-                                timing.ready(&delta, job.queued_at);
+                                timing.ready(&delta, job.queued_at, job.trace.as_ref());
                                 if job.events.blocking_send(WorkerEvent::Delta(delta)).is_err() {
                                     return false;
                                 }
@@ -212,6 +270,9 @@ fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
             engine.generate(&job.request, &mut on_text)
         };
         if job.cancelled.load(Ordering::Relaxed) || job.events.is_closed() {
+            if let Some(trace) = &job.trace {
+                trace.terminal("cancelled", "generation", "client_disconnected", json!({}));
+            }
             continue;
         }
         let result = result.and_then(|mut output| {
@@ -219,9 +280,7 @@ fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
                 bail!("{error}");
             }
             if !output.text.is_empty() {
-                timing
-                    .first_model_text_seconds
-                    .get_or_insert_with(|| job.queued_at.elapsed().as_secs_f64());
+                timing.model_text(job.queued_at, job.trace.as_ref());
             }
             let tail = processor.finish(&output.text)?;
             if buffered {
@@ -235,6 +294,7 @@ fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
                     timing.ready(
                         &Delta::Reasoning(processor.reply.reasoning.clone()),
                         job.queued_at,
+                        job.trace.as_ref(),
                     );
                     let _ = job
                         .events
@@ -245,13 +305,14 @@ fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
                 timing.ready(
                     &Delta::Content(processor.reply.content.clone()),
                     job.queued_at,
+                    job.trace.as_ref(),
                 );
                 let _ = job.events.blocking_send(WorkerEvent::Delta(Delta::Content(
                     processor.reply.content.clone(),
                 )));
             } else {
                 for delta in tail {
-                    timing.ready(&delta, job.queued_at);
+                    timing.ready(&delta, job.queued_at, job.trace.as_ref());
                     if job.events.blocking_send(WorkerEvent::Delta(delta)).is_err() {
                         bail!("client disconnected");
                     }
@@ -279,7 +340,31 @@ fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
                     metadata["timings"] = json!(timing);
                 }
             }
-            eprintln!("{metadata}");
+            job.trace.as_ref().unwrap().log(metadata);
+        }
+        if let Some(trace) = &job.trace {
+            if job.cancelled.load(Ordering::Relaxed) || job.events.is_closed() {
+                trace.terminal(
+                    "cancelled",
+                    "delivery",
+                    "client_disconnected",
+                    json!({"timings":timing}),
+                );
+            } else if result.is_ok() {
+                trace.terminal(
+                    "completed",
+                    "generation",
+                    "completed",
+                    json!({"timings":timing}),
+                );
+            } else {
+                trace.terminal(
+                    "error",
+                    "generation",
+                    "generation_error",
+                    json!({"timings":timing}),
+                );
+            }
         }
         let event = match result {
             Ok((output, reply)) => WorkerEvent::Done(output, reply, timing),
@@ -454,9 +539,20 @@ async fn completions(
     };
     let (events, mut receiver) = async_mpsc::channel(EVENT_CAPACITY);
     let cancelled = Arc::new(AtomicBool::new(false));
-    let guard = CancelOnDrop(cancelled.clone());
+    let queued_at = Instant::now();
+    let trace = state
+        .request_log
+        .map(|sink| RequestTrace::new(sink, &id, &state.model, &generation, queued_at));
+    if let Some(trace) = &trace {
+        trace.event("admission", json!({}));
+    }
+    let guard = CancelOnDrop {
+        cancelled: cancelled.clone(),
+        trace: trace.clone(),
+    };
     if let Err(error) = state.sender.try_send(Job {
-        queued_at: Instant::now(),
+        trace,
+        queued_at,
         request: generation,
         stop,
         response_format,
@@ -465,10 +561,16 @@ async fn completions(
         cancelled,
     }) {
         return match error {
-            mpsc::TrySendError::Full(_) => {
+            mpsc::TrySendError::Full(job) => {
+                if let Some(trace) = &job.trace {
+                    trace.terminal("error", "admission", "queue_full", json!({}));
+                }
                 api_error(StatusCode::SERVICE_UNAVAILABLE, "generation queue is full")
             }
-            mpsc::TrySendError::Disconnected(_) => {
+            mpsc::TrySendError::Disconnected(job) => {
+                if let Some(trace) = &job.trace {
+                    trace.terminal("error", "admission", "worker_stopped", json!({}));
+                }
                 api_error(StatusCode::SERVICE_UNAVAILABLE, "generation worker stopped")
             }
         };

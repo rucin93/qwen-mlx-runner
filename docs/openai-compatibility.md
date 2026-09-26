@@ -71,9 +71,11 @@ opencode --pure -m qwen-metal/Qwen3.8-27B-4bit
 ```
 
 Ask `Odpowiedz jednym słowem: DZIALA`. On 2026-09-26, the user confirmed that
-this invocation displayed an answer on the M5 Pro after ordinary TUI startup
-had shown none, while direct `curl` requests worked. This is a manual
-user-reported check of that session, not a full trained-model quality test.
+this invocation eventually displayed an answer on the M5 Pro while direct
+`curl` requests worked. The follow-up clarified that both ordinary and `--pure`
+TUI sessions took about ten minutes for a greeting. **The pure launch did not
+resolve the latency problem.** This is a manual user-reported observation,
+not a full trained-model quality or performance test.
 
 `--pure` disables external plugins for this process without editing global
 configuration or uninstalling anything. It retains OpenCode's built-in tools;
@@ -230,6 +232,12 @@ and first content means the model is generating reasoning before answering.
 The `low` variant keeps reasoning enabled with a lower requested effort; `none`
 can provide a controlled comparison with the terminal's default. Expanding
 thinking in the UI changes visibility only.
+
+From 0.7.4 the same logging flag also emits `request_lifecycle` records during
+the request, starting at admission and worker pickup, then generation start,
+first text/readiness and termination. Preparation failures and disconnected
+clients are included, so useful evidence is available before a long generation
+finishes. See [actual OpenCode prompt size and lifecycle interpretation](opencode-latency.md).
 
 From 0.7.3, MTP prompt initialization skips unused vocabulary projections in
 nonfinal target blocks and uses a cache-only K/V append for the draft model.

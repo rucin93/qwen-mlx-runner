@@ -1,0 +1,197 @@
+{
+  "kind": "opencode_prompt_tokenization_probe",
+  "date": "2026-09-26",
+  "opencode_version": "1.15.12",
+  "opencode_revision": "58a27b95c155d3f7d9b9f25b30eb1233bfb0eae5",
+  "model_repository": "mlx-community/Qwen3.8-27B-4bit",
+  "model_revision": "10c35caafbb80f7dc6a7a432cdd11af10a6d4818",
+  "context_capacity": 8192,
+  "scope": "Actual isolated CLI and TUI request capture; deterministic HTTP fixture; real tokenizer/server parser; no weights or GPU generation. User failing M5 session was not captured.",
+  "conditions": {
+    "empty_project": true,
+    "external_plugins": false,
+    "history_messages": 0,
+    "external_skills": false,
+    "title_agent": false
+  },
+  "source_sha256": {
+    "tokenizer.json": "06b9509352d2af50381ab2247e083b80d32d5c0aba91c272ca9ff729b6a0e523",
+    "chat_template.jinja": "c3cf9e34abf4f9e36c2d72165aa9c132d3e2a725b6c2586aaa3a8af9d7a81041",
+    "tokenizer_config.json": "792fa3f0cb88b111e54ef3134c873531008c4df471d108da17903426e308aa7b"
+  },
+  "captures": {
+    "cli_run": {
+      "effective_max_tokens": 458,
+      "enable_thinking": true,
+      "message_count": 2,
+      "messages": [
+        {
+          "content_bytes": 9664,
+          "content_chars": 9664,
+          "raw_content_tokens": 2124,
+          "role": "system"
+        },
+        {
+          "content_bytes": 3,
+          "content_chars": 3,
+          "raw_content_tokens": 2,
+          "role": "user"
+        }
+      ],
+      "prepare_result": "ok",
+      "prepare_seconds_local_cpu": 0.050205416,
+      "prompt_tokens": 7734,
+      "prompt_without_tools": 2141,
+      "reasoning_effort": "medium",
+      "rendered_bytes": 33216,
+      "rendered_chars": 33216,
+      "request_body_bytes": 32301,
+      "requested_max_tokens": 8192,
+      "source_request": "request-1.json",
+      "tool_count": 10,
+      "tool_increment_tokens": 5593,
+      "tools": [
+        {
+          "json_bytes": 5789,
+          "json_tokens": 1410,
+          "name": "bash"
+        },
+        {
+          "json_bytes": 1958,
+          "json_tokens": 423,
+          "name": "edit"
+        },
+        {
+          "json_bytes": 1142,
+          "json_tokens": 246,
+          "name": "glob"
+        },
+        {
+          "json_bytes": 1215,
+          "json_tokens": 287,
+          "name": "grep"
+        },
+        {
+          "json_bytes": 1734,
+          "json_tokens": 437,
+          "name": "read"
+        },
+        {
+          "json_bytes": 1757,
+          "json_tokens": 362,
+          "name": "skill"
+        },
+        {
+          "json_bytes": 3629,
+          "json_tokens": 777,
+          "name": "task"
+        },
+        {
+          "json_bytes": 2686,
+          "json_tokens": 615,
+          "name": "todowrite"
+        },
+        {
+          "json_bytes": 1321,
+          "json_tokens": 302,
+          "name": "webfetch"
+        },
+        {
+          "json_bytes": 1026,
+          "json_tokens": 223,
+          "name": "write"
+        }
+      ],
+      "user_only_prompt_tokens": 12
+    },
+    "tui": {
+      "effective_max_tokens": 127,
+      "enable_thinking": true,
+      "message_count": 2,
+      "messages": [
+        {
+          "content_bytes": 9664,
+          "content_chars": 9664,
+          "raw_content_tokens": 2124,
+          "role": "system"
+        },
+        {
+          "content_bytes": 3,
+          "content_chars": 3,
+          "raw_content_tokens": 2,
+          "role": "user"
+        }
+      ],
+      "prepare_result": "ok",
+      "prepare_seconds_local_cpu": 0.052762666,
+      "prompt_tokens": 8065,
+      "prompt_without_tools": 2141,
+      "reasoning_effort": "medium",
+      "rendered_bytes": 34736,
+      "rendered_chars": 34736,
+      "request_body_bytes": 33816,
+      "requested_max_tokens": 8192,
+      "source_request": "tui-request-1.json",
+      "tool_count": 11,
+      "tool_increment_tokens": 5924,
+      "tools": [
+        {
+          "json_bytes": 5789,
+          "json_tokens": 1410,
+          "name": "bash"
+        },
+        {
+          "json_bytes": 1958,
+          "json_tokens": 423,
+          "name": "edit"
+        },
+        {
+          "json_bytes": 1142,
+          "json_tokens": 246,
+          "name": "glob"
+        },
+        {
+          "json_bytes": 1215,
+          "json_tokens": 287,
+          "name": "grep"
+        },
+        {
+          "json_bytes": 1514,
+          "json_tokens": 325,
+          "name": "question"
+        },
+        {
+          "json_bytes": 1734,
+          "json_tokens": 437,
+          "name": "read"
+        },
+        {
+          "json_bytes": 1757,
+          "json_tokens": 362,
+          "name": "skill"
+        },
+        {
+          "json_bytes": 3629,
+          "json_tokens": 777,
+          "name": "task"
+        },
+        {
+          "json_bytes": 2686,
+          "json_tokens": 615,
+          "name": "todowrite"
+        },
+        {
+          "json_bytes": 1321,
+          "json_tokens": 302,
+          "name": "webfetch"
+        },
+        {
+          "json_bytes": 1026,
+          "json_tokens": 223,
+          "name": "write"
+        }
+      ],
+      "user_only_prompt_tokens": 12
+    }
+  }
+}

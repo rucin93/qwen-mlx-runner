@@ -213,15 +213,22 @@ provider/model settings into your existing config. Start a new interactive
 session in that project with:
 
 ```sh
-opencode --pure -m qwen-metal/Qwen3.8-27B-4bit
+opencode -m qwen-metal/Qwen3.8-27B-4bit
 ```
 
-`--pure` disables external OpenCode plugins for this invocation; the explicit
-model selects the local provider even if a previous session used another model.
-Reasoning and built-in tools remain available. The config uses
+The explicit model selects the local provider even if a previous session used
+another model. Add `--pure` to isolate external plugins while diagnosing a
+problem; this does not resolve slow prompt processing. The config uses
 `@ai-sdk/openai-compatible`, the local `/v1` endpoint, and this model for both
 main and small-model tasks. No API key is needed. If `curl` works but the TUI
 shows no answer, follow the [TUI checks](docs/openai-compatibility.md#when-curl-works-but-the-tui-shows-no-answer).
+
+Even `Hej` can become a large coding-agent prompt: an isolated OpenCode 1.15.12
+TUI capture rendered to **8,065 tokens** with system instructions and eleven
+tools, leaving only 127 output tokens in an 8,192-token context. Earlier M5 throughput runs
+used only 43–65 prompt tokens. From 0.7.4, `QWEN_METAL_LOG_REQUESTS=1` reports
+request stages immediately, including cancellation, so a long wait can be
+diagnosed before completion. See [OpenCode prompt cost and live diagnostics](docs/opencode-latency.md).
 
 From 0.7.2 the example enables reasoning at `medium` effort and preserves it
 through tool-call history with `interleaved.field: "reasoning_content"`.
