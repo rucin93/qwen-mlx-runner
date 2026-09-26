@@ -1,0 +1,62 @@
+{
+  "kind": "user_supplied_opencode_lifecycle_extract",
+  "date": "2026-09-26",
+  "scope": "Normalized extract of user-provided log prefix. Main request had not produced a recorded first text or terminal event in the supplied excerpt; full main latency is unknown.",
+  "engine_version": "0.7.4",
+  "device": "Apple M5 Pro",
+  "displayed_allocated_gib": 24.99,
+  "configuration": {
+    "reference": false,
+    "gemv": "aligned",
+    "norm": "parallel",
+    "metadata": "bf16",
+    "attention_values": "serial",
+    "mtp_block_size": 3,
+    "context_capacity": 81000
+  },
+  "requests": [
+    {
+      "id": "chatcmpl-1790419130-0",
+      "message_count": 3,
+      "message_content_bytes": 2163,
+      "message_bytes": 2338,
+      "tool_count": 0,
+      "tool_bytes": 2,
+      "reasoning_effort": "medium",
+      "max_tokens": 8192,
+      "prompt_tokens": 551,
+      "completion_tokens": 118,
+      "finish_reason": "stop",
+      "queue_seconds": 0.00050575,
+      "prepare_seconds": 0.007631875,
+      "prefill_seconds": 15.682723833,
+      "decode_seconds": 5.305366292,
+      "first_model_text_seconds": 15.697840042,
+      "first_reasoning_seconds": 15.697907292,
+      "first_content_seconds": 20.881124833,
+      "total_seconds": 20.998709125
+    },
+    {
+      "id": "chatcmpl-1790419131-1",
+      "message_count": 2,
+      "message_content_bytes": 24453,
+      "message_bytes": 24935,
+      "tool_count": 11,
+      "tool_bytes": 22371,
+      "reasoning_effort": "medium",
+      "max_tokens": 8192,
+      "prompt_tokens": null,
+      "completion_tokens": null,
+      "queue_seconds": 20.212319208,
+      "prepare_seconds": 0.011007625,
+      "generation_start_elapsed_seconds": 20.223394666,
+      "first_model_text_seconds": null,
+      "finish_reason": null
+    }
+  ],
+  "interpretation_limits": [
+    "The no-tool request is consistent with an auxiliary task, but the payload/task was not logged.",
+    "The server context is 81000, so the 127-token remainder from the isolated 8192-context probe does not apply.",
+    "The main request prompt token count and prefill/decode times are not present in this log prefix."
+  ]
+}

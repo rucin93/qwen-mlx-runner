@@ -10,6 +10,7 @@ use super::{Engine, Matrix, Mixer, Scratch};
 use crate::gpu::DispatchEncoder;
 
 const MAX_BLOCK: usize = 4;
+const MAX_PREFILL_BATCH: usize = 16;
 // The final prefix remains in each layer's live state; only rejected suffixes
 // need a saved prefix, so a width-B block stores prefixes 0 through B-1.
 const PREFIX_SLOTS: usize = MAX_BLOCK;
@@ -44,6 +45,10 @@ pub(super) struct BlockState {
 
 impl BlockState {
     fn new(engine: &Engine) -> Result<Self> {
+        Self::with_capacity(engine, MAX_BLOCK, true)
+    }
+
+    fn with_capacity(engine: &Engine, capacity: usize, save_prefixes: bool) -> Result<Self> {
         ensure!(
             engine.kernel_mode() != "reference",
             "block verification is unavailable with reference kernels; use sequential forward for reference comparisons"
@@ -122,10 +127,12 @@ impl BlockState {
             Ok(())
         };
         for buffer in batched_buffers {
-            add_allocation(buffer, MAX_BLOCK)?;
+            add_allocation(buffer, capacity)?;
         }
         for layer in &engine.layers {
-            if let Mixer::Delta(d) = &layer.mixer {
+            if let Mixer::Delta(d) = &layer.mixer
+                && save_prefixes
+            {
                 add_allocation(&d.conv_state, PREFIX_SLOTS)?;
                 add_allocation(&d.state, PREFIX_SLOTS)?;
             }
@@ -138,7 +145,7 @@ impl BlockState {
             "block scratch and recurrent snapshots need {:.1} MiB beyond the current model; exceeds Metal's recommended memory budget",
             allocation_bytes as f64 / 1_048_576.
         );
-        let batch = |buffer: &Buffer| g.alloc_f32(buffer.length() as usize / 4 * MAX_BLOCK);
+        let batch = |buffer: &Buffer| g.alloc_f32(buffer.length() as usize / 4 * capacity);
         let scratch = Scratch {
             x: batch(&original.x)?,
             normalized: batch(&original.normalized)?,
@@ -164,18 +171,22 @@ impl BlockState {
         };
         let mut snapshots = Vec::with_capacity(engine.layers.len());
         for layer in &engine.layers {
-            snapshots.push(if let Mixer::Delta(d) = &layer.mixer {
-                let conv_elements = d.conv_state.length() as usize / 4;
-                let state_elements = d.state.length() as usize / 4;
-                Some(Snapshots {
-                    conv: g.alloc_f32(conv_elements * PREFIX_SLOTS)?,
-                    state: g.alloc_f32(state_elements * PREFIX_SLOTS)?,
-                    conv_elements,
-                    state_elements,
-                })
-            } else {
-                None
-            });
+            snapshots.push(
+                if let Mixer::Delta(d) = &layer.mixer
+                    && save_prefixes
+                {
+                    let conv_elements = d.conv_state.length() as usize / 4;
+                    let state_elements = d.state.length() as usize / 4;
+                    Some(Snapshots {
+                        conv: g.alloc_f32(conv_elements * PREFIX_SLOTS)?,
+                        state: g.alloc_f32(state_elements * PREFIX_SLOTS)?,
+                        conv_elements,
+                        state_elements,
+                    })
+                } else {
+                    None
+                },
+            );
         }
         Ok(Self {
             scratch,
@@ -226,6 +237,51 @@ impl Matrix {
                 128,
             )
         }
+    }
+
+    fn matmul_prompt(
+        &self,
+        e: &DispatchEncoder<'_>,
+        x: &BufferRef,
+        y: &BufferRef,
+        batch: usize,
+    ) -> Result<()> {
+        // Retain the proven batch-three matrix schedules, including the M5
+        // MLP R2 route. Known-prompt traversal reuses weights within each layer
+        // across these checked views without speculative snapshots.
+        for start in (0..batch).step_by(3) {
+            let width = (batch - start).min(3);
+            if let (Some(scales), Some(biases)) = (&self.scales, &self.biases) {
+                e.encode_offsets(
+                    if self.metadata_bf16 {
+                        "matmul_affine_bf16"
+                    } else {
+                        "matmul_affine"
+                    },
+                    &[&self.weight, scales, biases, x, y],
+                    &[0, 0, 0, start * self.cols * 4, start * self.rows * 4],
+                    &[
+                        self.rows as u32,
+                        self.cols as u32,
+                        self.bits,
+                        self.group as u32,
+                        width as u32,
+                    ],
+                    self.rows * 32,
+                    128,
+                )?;
+            } else {
+                e.encode_offsets(
+                    "matmul_f16",
+                    &[&self.weight, x, y],
+                    &[0, start * self.cols * 4, start * self.rows * 4],
+                    &[self.rows as u32, self.cols as u32, width as u32],
+                    self.rows * 32,
+                    128,
+                )?;
+            }
+        }
+        Ok(())
     }
 
     fn embed_offset(
@@ -291,6 +347,57 @@ impl Engine {
         Ok(output)
     }
 
+    /// Commit a batch of known prompt inputs without speculative rollback
+    /// storage. This opt-in path has its own scratch; decode widths stay 1..=4.
+    pub fn prefill_known_block(
+        &mut self,
+        tokens: &[u32],
+        final_prompt_block: bool,
+    ) -> Result<BlockOutput> {
+        ensure!(
+            self.block.as_ref().is_none_or(|b| b.pending.is_none()),
+            "commit or reset the pending verification block before prompt prefill"
+        );
+        ensure!(
+            (1..=MAX_PREFILL_BATCH).contains(&tokens.len()),
+            "known prompt batch width must be 1..=16"
+        );
+        ensure!(
+            tokens
+                .iter()
+                .all(|&token| (token as usize) < self.config.vocab_size),
+            "known prompt batch contains a token outside vocabulary"
+        );
+        ensure!(
+            self.position
+                .checked_add(tokens.len())
+                .is_some_and(|end| end <= self.context),
+            "known prompt batch exceeds context capacity {}",
+            self.context
+        );
+        if self.prompt_block.is_none() {
+            self.prompt_block = Some(BlockState::with_capacity(self, MAX_PREFILL_BATCH, false)?);
+        }
+        let result = objc::rc::autoreleasepool(|| {
+            self.verify_block_inner(
+                tokens,
+                final_prompt_block,
+                self.prompt_block.as_ref().unwrap(),
+                true,
+            )
+        });
+        match result {
+            Ok(output) => {
+                self.position += tokens.len();
+                Ok(output)
+            }
+            Err(error) => {
+                self.reset();
+                Err(error)
+            }
+        }
+    }
+
     /// Evaluate one to four consecutive known/proposed inputs. The resulting
     /// state is tentative until `commit_block_prefix`, including full acceptance.
     pub fn verify_block(&mut self, tokens: &[u32]) -> Result<BlockOutput> {
@@ -322,7 +429,9 @@ impl Engine {
         if self.block.is_none() {
             self.block = Some(BlockState::new(self)?);
         }
-        let result = objc::rc::autoreleasepool(|| self.verify_block_inner(tokens, output_logits));
+        let result = objc::rc::autoreleasepool(|| {
+            self.verify_block_inner(tokens, output_logits, self.block.as_ref().unwrap(), false)
+        });
         match result {
             Ok(output) => {
                 self.block.as_mut().unwrap().pending = Some(Pending {
@@ -395,9 +504,26 @@ impl Engine {
         Ok(())
     }
 
-    fn verify_block_inner(&self, tokens: &[u32], output_logits: bool) -> Result<BlockOutput> {
-        let (g, c, block) = (&self.gpu, &self.config, self.block.as_ref().unwrap());
+    fn verify_block_inner(
+        &self,
+        tokens: &[u32],
+        output_logits: bool,
+        block: &BlockState,
+        known_prompt: bool,
+    ) -> Result<BlockOutput> {
+        let (g, c) = (&self.gpu, &self.config);
         let s = &block.scratch;
+        let matmul = |matrix: &Matrix,
+                      e: &DispatchEncoder<'_>,
+                      x: &BufferRef,
+                      y: &BufferRef,
+                      batch: usize| {
+            if known_prompt {
+                matrix.matmul_prompt(e, x, y, batch)
+            } else {
+                matrix.matmul_block(e, x, y, batch)
+            }
+        };
         let batch = tokens.len();
         let h = c.hidden_size;
         let hd = c.head_dim;
@@ -438,19 +564,21 @@ impl Engine {
             }
             match &layer.mixer {
                 Mixer::Delta(d) => {
-                    d.qkv.matmul_block(&e, &s.normalized, &s.qkv, batch)?;
-                    d.z.matmul_block(&e, &s.normalized, &s.z, batch)?;
-                    d.a.matmul_block(&e, &s.normalized, &s.a, batch)?;
-                    d.b.matmul_block(&e, &s.normalized, &s.b, batch)?;
-                    let snapshots = block.snapshots[li].as_ref().unwrap();
-                    copy(
-                        &e,
-                        &d.conv_state,
-                        0,
-                        &snapshots.conv,
-                        0,
-                        snapshots.conv_elements,
-                    )?;
+                    matmul(&d.qkv, &e, &s.normalized, &s.qkv, batch)?;
+                    matmul(&d.z, &e, &s.normalized, &s.z, batch)?;
+                    matmul(&d.a, &e, &s.normalized, &s.a, batch)?;
+                    matmul(&d.b, &e, &s.normalized, &s.b, batch)?;
+                    let snapshots = block.snapshots[li].as_ref();
+                    if let Some(snapshots) = snapshots {
+                        copy(
+                            &e,
+                            &d.conv_state,
+                            0,
+                            &snapshots.conv,
+                            0,
+                            snapshots.conv_elements,
+                        )?;
+                    }
                     let batched_delta = g.block_kernel_mode().batched_delta && kd <= 128;
                     let delta_step = |i: usize| {
                         run(
@@ -485,7 +613,7 @@ impl Engine {
                             128,
                         )
                     };
-                    if !batched_delta {
+                    if !batched_delta && let Some(snapshots) = snapshots {
                         copy(
                             &e,
                             &d.state,
@@ -518,7 +646,9 @@ impl Engine {
                             // prefix B stays live.
                             delta_step(i)?;
                         }
-                        if i + 1 < batch {
+                        if i + 1 < batch
+                            && let Some(snapshots) = snapshots
+                        {
                             copy(
                                 &e,
                                 &d.conv_state,
@@ -543,18 +673,23 @@ impl Engine {
                         }
                     }
                     if batched_delta {
+                        let buffers: [&BufferRef; 8] = [
+                            &s.convolved,
+                            &s.a,
+                            &s.b,
+                            &d.alog,
+                            &d.dt,
+                            &d.state,
+                            &s.mixed,
+                            snapshots.map_or(&d.state, |saved| &saved.state),
+                        ];
                         e.encode(
-                            "delta_step_block",
-                            &[
-                                &s.convolved,
-                                &s.a,
-                                &s.b,
-                                &d.alog,
-                                &d.dt,
-                                &d.state,
-                                &s.mixed,
-                                &snapshots.state,
-                            ],
+                            if known_prompt {
+                                "delta_step_prefill"
+                            } else {
+                                "delta_step_block"
+                            },
+                            &buffers[..if known_prompt { 7 } else { 8 }],
                             &[kh as u32, vh as u32, kd as u32, vd as u32, batch as u32],
                             linear_width * 32,
                             128,
@@ -563,12 +698,12 @@ impl Engine {
                             gated_rms(i)?;
                         }
                     }
-                    d.out.matmul_block(&e, &s.gated, &s.residual, batch)?;
+                    matmul(&d.out, &e, &s.gated, &s.residual, batch)?;
                 }
                 Mixer::Attention(a) => {
-                    a.q.matmul_block(&e, &s.normalized, &s.qproj, batch)?;
-                    a.k.matmul_block(&e, &s.normalized, &s.k, batch)?;
-                    a.v.matmul_block(&e, &s.normalized, &s.v, batch)?;
+                    matmul(&a.q, &e, &s.normalized, &s.qproj, batch)?;
+                    matmul(&a.k, &e, &s.normalized, &s.k, batch)?;
+                    matmul(&a.v, &e, &s.normalized, &s.v, batch)?;
                     for i in 0..batch {
                         run(
                             "split_q_gate",
@@ -646,7 +781,7 @@ impl Engine {
                             128,
                         )?;
                     }
-                    a.out.matmul_block(&e, &s.mixed, &s.residual, batch)?;
+                    matmul(&a.out, &e, &s.mixed, &s.residual, batch)?;
                 }
             }
             e.encode(
@@ -666,8 +801,8 @@ impl Engine {
                     32,
                 )?;
             }
-            layer.gate.matmul_block(&e, &s.normalized, &s.gate, batch)?;
-            layer.up.matmul_block(&e, &s.normalized, &s.up, batch)?;
+            matmul(&layer.gate, &e, &s.normalized, &s.gate, batch)?;
+            matmul(&layer.up, &e, &s.normalized, &s.up, batch)?;
             e.encode(
                 "swiglu",
                 &[&s.gate, &s.up, &s.activated],
@@ -675,9 +810,7 @@ impl Engine {
                 batch * c.intermediate_size,
                 128,
             )?;
-            layer
-                .down
-                .matmul_block(&e, &s.activated, &s.residual, batch)?;
+            matmul(&layer.down, &e, &s.activated, &s.residual, batch)?;
             e.encode(
                 "add",
                 &[&s.x, &s.residual, &s.x],
@@ -697,7 +830,8 @@ impl Engine {
             )?;
         }
         if output_logits {
-            self.head.as_ref().unwrap_or(&self.embedding).matmul_block(
+            matmul(
+                self.head.as_ref().unwrap_or(&self.embedding),
                 &e,
                 &s.normalized,
                 &s.logits,

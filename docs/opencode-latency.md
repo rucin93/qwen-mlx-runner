@@ -56,10 +56,38 @@ ordinary path processes prompt tokens sequentially; MTP processes small blocks
 and resets its caches for each request. These remain performance limitations
 for large coding-agent prompts. [Current MTP behavior](native-mtp.md).
 
+## User M5 log: 81,000 context and native MTP
+
+The user then supplied a 0.7.4 server launch and lifecycle prefix with native
+MTP block size 3, aligned GEMV, parallel norms, BF16 metadata, serial attention
+values and **context 81,000**. The displayed device allocation was 24.99 GiB.
+The [normalized log extract](benchmarks/m5-pro-v0.7.4-opencode-lifecycle-user.json)
+records the exact supplied counts and times without prompt content.
+
+A three-message request without tools processed 551 prompt tokens in
+15.6827 seconds, then generated 118 tokens in 5.3054 seconds. It occupied the
+worker for 20.9987 seconds. A following request with 11 tools, 24,453 message
+content bytes and 22,371 serialized tool bytes waited **20.2123 seconds** in
+the queue. Its CPU preparation took only 0.0110 seconds before entering
+generation. The provided excerpt ends there; the main request's first text,
+token count and final engine timings were not supplied.
+
+The first request is consistent with an auxiliary task such as title
+generation; counts alone cannot identify it. Explicitly disabling the title
+agent in the effective OpenCode configuration is a useful isolation step.
+The 20-second queue explains only part of the reported delay.
+
+**The 127-token output remainder measured with context 8,192 does not apply
+to this user's 81,000-token server.** The logged effective output maximum is
+8,192. The relevant engine limitation is already the MTP small-block prompt
+path, so optimizing the ordinary sequential path would not accelerate this
+launch. Larger prompt batches must be evaluated separately from the
+three-token speculative decode block.
+
 ## Capture the wait without waiting for completion
 
-Build the version containing this diagnostic change and verify that the binary
-reports `qwen-metal 0.7.4`. Restart the server with **the same model, adapter,
+Build version 0.7.4 or newer and check `qwen-metal --version`.
+Restart the server with **the same model, adapter,
 context and kernel options as the slow run**, adding
 `QWEN_METAL_LOG_REQUESTS=1` before its existing launch command. This flag is
 read at server startup; setting it in the OpenCode terminal does not affect an
@@ -100,7 +128,7 @@ visible output, including prompt processing. A first reasoning event followed
 much later by first answer content identifies time spent before the answer.
 The completed summary reports exact engine prefill and decode durations.
 
-This release adds diagnostic evidence. It does not claim to solve the
+Version 0.7.4 adds diagnostic evidence. It does not claim to solve the
 reported ten-minute latency, change reasoning defaults or speed up M5 kernels.
 
 ## Local validation of 0.7.4
@@ -118,3 +146,101 @@ sequence for a tiny fixture and an error terminal for context overflow. The
 test checked version 0.7.4, HTTP 200/400 and metadata-only logging. Independent
 read-only review found no blocking correctness or privacy issue. Full-model
 M5 latency remains to be measured with the new diagnostics.
+
+## Opt-in prompt batching in 0.7.5
+
+`serve` and `generate` now accept `--mtp-prefill-batch-size 8` or `16` with
+`--mtp`. This groups known prompt positions independently of the speculative
+decode width. Omitting it retains the original prompt path and width; the
+measured M5 decode setting remains `--mtp-block-size 3`.
+
+The candidate traverses more prompt positions per layer, removes recurrent
+rollback snapshots that known inputs do not need, and retains the existing
+matrix kernels in groups of at most three. Attention and DeltaNet remain
+causal, and every target hidden output is passed to the adapter. It does not
+change weights, quantization, context, reasoning or the per-request cache reset.
+
+On a synthetic four-layer, 512-wide mixed-format graph on **M1**, processing
+48 known inputs took median wall times of 35.095 ms for the existing path,
+28.536 ms for prompt batch 8 and 25.683 ms for prompt batch 16. Matrix-only
+controls at the real projection dimensions were approximately neutral.
+These are local fixture results, not full-model M5 or OpenCode measurements.
+The [numeric record](benchmarks/m1-v0.7.5-known-prefill.json) retains all five
+matrix controls. Two true-wide matrix experiments were slower and were removed
+from the runtime; their [negative measurements](benchmarks/m1-v0.7.5-rejected-wide-prefill.json)
+are retained. No larger prompt batch is enabled by default.
+
+### Short comparison on the target Mac
+
+Build both the binary and the comparison example:
+
+```sh
+cargo build --release --locked --bin qwen-metal --example mtp_prefill_bench
+./target/release/qwen-metal --version
+```
+
+Stop the running model server first. The supplied launch already allocates
+24.99 GiB; loading another target and adapter concurrently on the 48 GiB Mac
+would put the benchmark under avoidable memory pressure. Keep the same kernel
+options, context, power source and power mode for the comparison:
+
+```sh
+QWEN_METAL_REFERENCE=0 QWEN_METAL_GEMV=aligned \
+QWEN_METAL_NORM=parallel QWEN_METAL_METADATA=bf16 QWEN_METAL_ATTN_VALUES=serial \
+  ./target/release/examples/mtp_prefill_bench \
+  --model models/Qwen3.8-27B-4bit \
+  --mtp models/Qwen3.8-27B-MTP-4bit \
+  --context 81000 --prompt-tokens 512 --max-tokens 16 --runs 3 \
+  --prefill-batch-size 16 > prefill-512.json
+```
+
+The example loads the target and adapter once, runs one excluded warmup pair,
+then three measured pairs in alternating AB/BA order. All runs use greedy
+generation, the same synthetic text and the checkpoint's original template;
+the report records the actual rendered token count. Speculative decode stays
+at three in both variants. Token IDs, text, finish reason and counts must agree
+in every pair, including warmup. A mismatch produces a nonzero exit and withholds
+all comparison ratios. This is a numerical/performance probe, not a coding
+quality test or a replay of the user's OpenCode request.
+
+Inspect `correct_comparison`, the `baseline` and `candidate` summaries, and
+`baseline_over_candidate_median_prefill_ratio`. A ratio above one means lower
+candidate latency. The report separates target and adapter prompt time, records
+time to first token and captures device/power/thermal conditions. Check these
+conditions before attributing a small difference to the candidate. A short
+probe is the first gate; it does not establish the latency of the much larger
+OpenCode request. If it is correct and beneficial, repeat with a representative
+longer prompt before deciding whether to add `--mtp-prefill-batch-size 16` to
+the server command.
+
+### Local validation of 0.7.5
+
+`cargo test --all-targets` passed 150 tests with 61 environment-dependent tests
+ignored. The relevant ignored tests were then run on the real M1 GPU:
+
+```sh
+QWEN_METAL_METADATA=bf16 cargo test --test known_prefill --test known_delta \
+  -- --ignored --nocapture --test-threads=1
+cargo test --test grouped_prefill_matrix -- --ignored --nocapture --test-threads=1
+cargo test --test mtp_prefill --test block_inference --test delta_snapshot \
+  --test batch_matrix -- --ignored --test-threads=1
+```
+
+These passed 7, 1 and 20 tests respectively. Coverage includes widths 1–16 and
+all tails, dense/Q4/BF16 fixtures, direct scalar/FP64 DeltaNet comparison,
+hidden/logit history and future decoding, cancellation/reset, invalid inputs,
+pending verification, the larger-key scalar fallback and snapshot-free dispatch
+profiles. Existing speculative verification and rollback tests remain green.
+The CLI opt-in test was observed failing before implementation and passing
+afterwards. An independent read-only source review found no actionable
+correctness or safety issue.
+
+The release binary and example built successfully and reported version 0.7.5.
+The real GPU release example ran a 54-token synthetic fixture with one warmup
+pair and two measured pairs: all outputs matched, exactly two measurements per
+variant entered summaries, and the target/adapter were loaded once. A release
+server with prompt batch 16 returned HTTP 200 and a completed lifecycle record;
+the release `generate` command reported prompt batch 16 and decode width 3.
+The tiny fixture supports context at most 128, which was used for these release
+checks. Formatting and whitespace checks passed. These checks establish local
+integration and numerical consistency, not resolution of the M5 delay.

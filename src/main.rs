@@ -34,6 +34,14 @@ enum ProfileBackend {
     Commands,
 }
 
+fn parse_mtp_prefill_batch_size(value: &str) -> std::result::Result<usize, String> {
+    match value {
+        "8" => Ok(8),
+        "16" => Ok(16),
+        _ => Err("MTP prompt batch size must be 8 or 16".into()),
+    }
+}
+
 #[derive(Subcommand)]
 enum Command {
     /// Validate checkpoint metadata without loading weights onto the GPU.
@@ -50,6 +58,9 @@ enum Command {
         mtp: Option<PathBuf>,
         #[arg(long, default_value_t = 3)]
         mtp_block_size: usize,
+        /// Opt-in larger prompt batches; MTP decode block size is unchanged.
+        #[arg(long, requires = "mtp", value_parser = parse_mtp_prefill_batch_size)]
+        mtp_prefill_batch_size: Option<usize>,
         #[arg(long, default_value_t = 8192)]
         context: usize,
         #[arg(long, default_value = "127.0.0.1:8080")]
@@ -64,6 +75,9 @@ enum Command {
         mtp: Option<PathBuf>,
         #[arg(long, default_value_t = 3)]
         mtp_block_size: usize,
+        /// Opt-in larger prompt batches; MTP decode block size is unchanged.
+        #[arg(long, requires = "mtp", value_parser = parse_mtp_prefill_batch_size)]
+        mtp_prefill_batch_size: Option<usize>,
         #[arg(long)]
         prompt: String,
         #[arg(long, default_value_t = 8192)]
@@ -327,6 +341,7 @@ fn main() -> Result<()> {
             model,
             mtp,
             mtp_block_size,
+            mtp_prefill_batch_size,
             context,
             listen,
         } => {
@@ -339,11 +354,15 @@ fn main() -> Result<()> {
                 "--mtp-block-size requires --mtp"
             );
             let engine: Box<dyn TextGenerator> = if let Some(path) = mtp {
-                let engine = MtpChatEngine::load(&model, &path, context, mtp_block_size)?;
+                let mut engine = MtpChatEngine::load(&model, &path, context, mtp_block_size)?;
+                if let Some(size) = mtp_prefill_batch_size {
+                    engine.set_prefill_batch_size(size)?;
+                }
                 eprintln!(
-                    "Loaded {} with native MTP block size {} on {}; {:.2} GiB device allocated. Listening on http://{listen}",
+                    "Loaded {} with native MTP block size {}, prompt batch size {} on {}; {:.2} GiB device allocated. Listening on http://{listen}",
                     engine.model_id(),
                     mtp_block_size,
+                    engine.prefill_batch_size(),
                     engine.engine().device_name(),
                     engine.engine().allocated_bytes() as f64 / 1073741824.
                 );
@@ -367,6 +386,7 @@ fn main() -> Result<()> {
             model,
             mtp,
             mtp_block_size,
+            mtp_prefill_batch_size,
             prompt,
             context,
             max_tokens,
@@ -405,6 +425,9 @@ fn main() -> Result<()> {
             };
             let (output, mtp_stats) = if let Some(path) = mtp {
                 let mut engine = MtpChatEngine::load(&model, &path, context, mtp_block_size)?;
+                if let Some(size) = mtp_prefill_batch_size {
+                    engine.set_prefill_batch_size(size)?;
+                }
                 if thinking {
                     print!("<think>\n");
                 }
@@ -422,6 +445,8 @@ fn main() -> Result<()> {
                 "prefill_seconds":output.prefill_seconds,"decode_seconds":output.decode_seconds,"finish_reason":output.finish_reason});
             if let Some(stats) = mtp_stats {
                 report["mtp_block_size"] = json!(mtp_block_size);
+                report["mtp_prefill_batch_size"] =
+                    json!(mtp_prefill_batch_size.unwrap_or(mtp_block_size));
                 report["mtp_stats"] = serde_json::to_value(stats)?;
                 report["sustained_decode_tokens_per_second"] = json!(
                     (output.decode_seconds > 0.)
@@ -823,5 +848,53 @@ mod cli_tests {
             }
             _ => panic!("wrong command"),
         }
+    }
+
+    #[test]
+    fn mtp_prompt_batch_is_opt_in_and_rejects_invalid_cli_requests() {
+        for size in ["8", "16"] {
+            for command in ["serve", "generate"] {
+                let mut args = vec![
+                    "qwen-metal",
+                    command,
+                    "--model",
+                    "target",
+                    "--mtp",
+                    "adapter",
+                    "--mtp-prefill-batch-size",
+                    size,
+                ];
+                if command == "generate" {
+                    args.extend(["--prompt", "Hej"]);
+                }
+                assert!(Cli::try_parse_from(args).is_ok(), "{command} batch {size}");
+            }
+        }
+        for size in ["0", "7", "9", "32", "invalid"] {
+            assert!(
+                Cli::try_parse_from([
+                    "qwen-metal",
+                    "serve",
+                    "--model",
+                    "target",
+                    "--mtp",
+                    "adapter",
+                    "--mtp-prefill-batch-size",
+                    size,
+                ])
+                .is_err()
+            );
+        }
+        assert!(
+            Cli::try_parse_from([
+                "qwen-metal",
+                "serve",
+                "--model",
+                "target",
+                "--mtp-prefill-batch-size",
+                "8",
+            ])
+            .is_err()
+        );
     }
 }

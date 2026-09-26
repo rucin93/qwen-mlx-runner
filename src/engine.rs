@@ -271,6 +271,7 @@ pub struct Engine {
     position: usize,
     context: usize,
     block: Option<block::BlockState>,
+    prompt_block: Option<block::BlockState>,
 }
 
 impl Engine {
@@ -434,6 +435,7 @@ impl Engine {
             position: 0,
             context,
             block: None,
+            prompt_block: None,
         };
         engine.reset();
         Ok(engine)

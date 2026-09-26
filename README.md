@@ -230,6 +230,12 @@ used only 43–65 prompt tokens. From 0.7.4, `QWEN_METAL_LOG_REQUESTS=1` reports
 request stages immediately, including cancellation, so a long wait can be
 diagnosed before completion. See [OpenCode prompt cost and live diagnostics](docs/opencode-latency.md).
 
+Version 0.7.5 adds optional `--mtp-prefill-batch-size 8` or `16` for larger
+prompt batches while keeping MTP decode at three. The default remains unchanged.
+Use the [one-load comparison](docs/opencode-latency.md#short-comparison-on-the-target-mac)
+on the target Mac before enabling it; full-model M5 latency improvement is not
+yet established.
+
 From 0.7.2 the example enables reasoning at `medium` effort and preserves it
 through tool-call history with `interleaved.field: "reasoning_content"`.
 Explicit variants `none`, `low`, `medium`, and `xhigh` let you change the effort.

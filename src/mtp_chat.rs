@@ -57,6 +57,7 @@ pub struct MtpChatEngine {
     tokenizer: ChatTokenizer,
     model_id: String,
     block_size: usize,
+    prefill_batch_size: usize,
 }
 
 impl MtpChatEngine {
@@ -84,6 +85,7 @@ impl MtpChatEngine {
             tokenizer,
             model_id,
             block_size,
+            prefill_batch_size: block_size,
         })
     }
 
@@ -95,6 +97,22 @@ impl MtpChatEngine {
     /// unchanged so a factorial benchmark can isolate the two target kernels.
     pub fn set_block_kernel_mode(&mut self, mode: crate::gpu::BlockKernelMode) -> Result<()> {
         self.engine.set_block_kernel_mode(mode)
+    }
+
+    /// Opt in to known-prompt batches independently of speculative decode.
+    /// Passing the decode width restores the existing prefill schedule.
+    pub fn set_prefill_batch_size(&mut self, size: usize) -> Result<()> {
+        ensure!(
+            size == self.block_size || matches!(size, 8 | 16),
+            "MTP prefill batch size must equal decode width {} or be 8 or 16",
+            self.block_size
+        );
+        self.prefill_batch_size = size;
+        Ok(())
+    }
+
+    pub fn prefill_batch_size(&self) -> usize {
+        self.prefill_batch_size
     }
 
     pub fn clear_cache(&mut self) {
@@ -169,15 +187,20 @@ impl MtpChatEngine {
         let mut previous_hidden = Vec::new();
         let mut logits = Vec::new();
         if use_mtp {
-            for (chunk_index, chunk) in prompt.chunks(self.block_size).enumerate() {
+            for (chunk_index, chunk) in prompt.chunks(self.prefill_batch_size).enumerate() {
                 if !on_text("") {
                     bail!("request cancelled during prefill");
                 }
                 // Target weights are reused across prompt positions, while
                 // stateful layers still execute the positions causally.
                 let started = Instant::now();
-                let final_chunk = chunk_index * self.block_size + chunk.len() == prompt.len();
-                let mut block = self.engine.prefill_block(chunk, final_chunk)?;
+                let final_chunk =
+                    chunk_index * self.prefill_batch_size + chunk.len() == prompt.len();
+                let mut block = if self.prefill_batch_size == self.block_size {
+                    self.engine.prefill_block(chunk, final_chunk)?
+                } else {
+                    self.engine.prefill_known_block(chunk, final_chunk)?
+                };
                 stats.prefill_target_seconds += started.elapsed().as_secs_f64();
                 if final_chunk {
                     logits = block
@@ -189,7 +212,7 @@ impl MtpChatEngine {
                     if !on_text("") {
                         bail!("request cancelled during prefill");
                     }
-                    if chunk_index * self.block_size + relative > 0 {
+                    if chunk_index * self.prefill_batch_size + relative > 0 {
                         // MTP position i-1 combines x_i with target h_(i-1),
                         // including pairs spanning two target prompt blocks.
                         let started = Instant::now();

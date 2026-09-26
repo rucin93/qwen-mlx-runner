@@ -277,6 +277,7 @@ impl Engine {
             position: history,
             context,
             block: None,
+            prompt_block: None,
         })
     }
 }
