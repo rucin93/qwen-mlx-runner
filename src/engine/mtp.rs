@@ -11,6 +11,142 @@ pub struct MtpOutput {
     pub logits: Vec<f32>,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum OutputMode {
+    CacheOnly,
+    Hidden,
+    Logits,
+}
+
+#[cfg(test)]
+mod prefill_tests {
+    use super::*;
+
+    fn fixture(name: &str) -> std::path::PathBuf {
+        Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(name)
+    }
+
+    fn same_bits(actual: &[f32], expected: &[f32], label: &str) {
+        assert_eq!(actual.len(), expected.len(), "{label}: width");
+        for (index, (&actual, &expected)) in actual.iter().zip(expected).enumerate() {
+            assert_eq!(actual.to_bits(), expected.to_bits(), "{label}[{index}]");
+        }
+    }
+
+    #[test]
+    #[ignore = "requires a real Apple Metal GPU"]
+    fn prefill_appends_identical_kv_without_query_attention_or_mlp() -> Result<()> {
+        let target = Engine::load(&fixture("tiny-q4"), 16)?;
+        let mut baseline = Mtp::load(&target, &fixture("tiny-mtp"), 16)?;
+        let mut optimized = Mtp::load(&target, &fixture("tiny-mtp"), 16)?;
+        optimized.gpu.enable_command_profiling()?;
+        let hidden: Vec<f32> = (0..target.config().hidden_size)
+            .map(|i| (i as f32 * 0.71).sin())
+            .collect();
+        for (position, token) in [5, 9, 21, 11, 23].into_iter().enumerate() {
+            baseline.forward(token, &hidden, false)?;
+            optimized.prefill_token(token, &hidden)?;
+            assert_eq!(optimized.position(), position + 1);
+            let elements =
+                (position + 1) * target.config().num_key_value_heads * target.config().head_dim;
+            for (actual, expected) in [
+                (&optimized.attention.kcache, &baseline.attention.kcache),
+                (&optimized.attention.vcache, &baseline.attention.vcache),
+            ] {
+                same_bits(
+                    &optimized.gpu.read_f32(actual, elements)?,
+                    &baseline.gpu.read_f32(expected, elements)?,
+                    "prefill KV",
+                );
+            }
+            let profile = optimized.gpu.profile_report()?;
+            for skipped in [
+                "split_q_gate",
+                "attn_scores",
+                "softmax",
+                "attn_values",
+                "swiglu",
+                "add",
+            ] {
+                assert!(
+                    profile.iter().all(|row| row.kernel != skipped),
+                    "prefill dispatched {skipped}"
+                );
+            }
+            for (kernel, expected) in [
+                ("rms_norm", 3),
+                ("head_rms", 1),
+                ("rope", 1),
+                ("kv_append", 1),
+            ] {
+                let count: usize = profile
+                    .iter()
+                    .filter(|row| row.kernel == kernel)
+                    .map(|row| row.dispatches)
+                    .sum();
+                assert_eq!(count, expected, "prefill {kernel} dispatch count");
+            }
+        }
+        optimized.gpu.disable_profiling();
+        // Both appended caches must support normal drafting and rollback, including
+        // replacement of a previously written suffix by different tokens.
+        for prefix in [5, 3, 0] {
+            optimized.truncate(prefix)?;
+            baseline.truncate(prefix)?;
+            for token in [7, 31] {
+                let expected = baseline.forward(token, &hidden, true)?;
+                let actual = optimized.forward(token, &hidden, true)?;
+                same_bits(&actual.hidden, &expected.hidden, "future MTP hidden");
+                same_bits(&actual.logits, &expected.logits, "future MTP logits");
+            }
+        }
+        Ok(())
+    }
+
+    #[test]
+    #[ignore = "requires a real Apple Metal GPU"]
+    fn invalid_prefill_preserves_mtp_cache_and_capacity() -> Result<()> {
+        let target = Engine::load(&fixture("tiny-q4"), 4)?;
+        let mut baseline = Mtp::load(&target, &fixture("tiny-mtp"), 2)?;
+        let mut optimized = Mtp::load(&target, &fixture("tiny-mtp"), 2)?;
+        let hidden = vec![0.5; target.config().hidden_size];
+        baseline.forward(5, &hidden, false)?;
+        optimized.prefill_token(5, &hidden)?;
+        assert!(
+            optimized
+                .prefill_token(target.config().vocab_size as u32, &hidden)
+                .is_err()
+        );
+        assert!(optimized.prefill_token(9, &hidden[1..]).is_err());
+        for value in [f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            let mut invalid = hidden.clone();
+            invalid[0] = value;
+            assert!(optimized.prefill_token(9, &invalid).is_err());
+            assert_eq!(optimized.position(), 1);
+        }
+        let expected = baseline.forward(9, &hidden, true)?;
+        let actual = optimized.forward(9, &hidden, true)?;
+        same_bits(
+            &actual.hidden,
+            &expected.hidden,
+            "after invalid MTP prefill hidden",
+        );
+        same_bits(
+            &actual.logits,
+            &expected.logits,
+            "after invalid MTP prefill logits",
+        );
+        assert!(optimized.prefill_token(7, &hidden).is_err());
+        assert_eq!(optimized.position(), 2);
+        optimized.reset();
+        optimized.prefill_token(7, &hidden)?;
+        assert_eq!(optimized.position(), 1);
+        Ok(())
+    }
+}
+
 struct Scratch {
     embedding: Buffer,
     hidden: Buffer,
@@ -165,12 +301,32 @@ impl Mtp {
         self.position = 0;
     }
 
+    /// Append a prompt token and its previous target hidden state to the drafter cache.
+    /// Prompt prefill needs only K/V: its next input uses the target hidden state,
+    /// so the query, attention output and MLP would produce no consumed output.
+    pub fn prefill_token(&mut self, token: u32, hidden: &[f32]) -> Result<()> {
+        self.evaluate(token, hidden, OutputMode::CacheOnly)?;
+        Ok(())
+    }
+
     pub fn forward(
         &mut self,
         token: u32,
         hidden: &[f32],
         output_logits: bool,
     ) -> Result<MtpOutput> {
+        self.evaluate(
+            token,
+            hidden,
+            if output_logits {
+                OutputMode::Logits
+            } else {
+                OutputMode::Hidden
+            },
+        )
+    }
+
+    fn evaluate(&mut self, token: u32, hidden: &[f32], mode: OutputMode) -> Result<MtpOutput> {
         ensure!(
             self.position < self.context,
             "MTP context capacity exhausted"
@@ -183,19 +339,14 @@ impl Mtp {
             hidden.len() == self.config.hidden_size && hidden.iter().all(|v| v.is_finite()),
             "MTP needs a finite normalized target/draft hidden vector"
         );
-        let result = objc::rc::autoreleasepool(|| self.forward_inner(token, hidden, output_logits));
+        let result = objc::rc::autoreleasepool(|| self.forward_inner(token, hidden, mode));
         if result.is_err() {
             self.reset();
         }
         result
     }
 
-    fn forward_inner(
-        &mut self,
-        token: u32,
-        hidden: &[f32],
-        output_logits: bool,
-    ) -> Result<MtpOutput> {
+    fn forward_inner(&mut self, token: u32, hidden: &[f32], mode: OutputMode) -> Result<MtpOutput> {
         let (g, c, s, a) = (&self.gpu, &self.config, &self.scratch, &self.attention);
         let (h, nh, nk, hd) = (
             c.hidden_size,
@@ -234,17 +385,21 @@ impl Mtp {
             32,
             32,
         )?;
-        a.q.matvec(&e, &s.normalized, &s.qproj)?;
+        if mode != OutputMode::CacheOnly {
+            a.q.matvec(&e, &s.normalized, &s.qproj)?;
+        }
         a.k.matvec(&e, &s.normalized, &s.k)?;
         a.v.matvec(&e, &s.normalized, &s.v)?;
-        e.encode(
-            "split_q_gate",
-            &[&s.qproj, &s.q, &s.attention_gate],
-            &[nh as u32, hd as u32],
-            nh * hd,
-            128,
-        )?;
-        for (x, w, heads) in [(&s.q, &a.qnorm, nh), (&s.k, &a.knorm, nk)] {
+        if mode != OutputMode::CacheOnly {
+            e.encode(
+                "split_q_gate",
+                &[&s.qproj, &s.q, &s.attention_gate],
+                &[nh as u32, hd as u32],
+                nh * hd,
+                128,
+            )?;
+        }
+        let normalize_and_rotate = |x, w, heads: usize| -> Result<()> {
             e.encode(
                 "head_rms",
                 &[x, w],
@@ -264,8 +419,12 @@ impl Mtp {
                 ],
                 heads * c.rotary_dim() / 2,
                 128,
-            )?;
+            )
+        };
+        if mode != OutputMode::CacheOnly {
+            normalize_and_rotate(&s.q, &a.qnorm, nh)?;
         }
+        normalize_and_rotate(&s.k, &a.knorm, nk)?;
         e.encode(
             "kv_append",
             &[&s.k, &s.v, &a.kcache, &a.vcache],
@@ -273,6 +432,15 @@ impl Mtp {
             nk * hd,
             128,
         )?;
+        if mode == OutputMode::CacheOnly {
+            e.end_encoding()?;
+            g.finish(cmd)?;
+            self.position += 1;
+            return Ok(MtpOutput {
+                hidden: Vec::new(),
+                logits: Vec::new(),
+            });
+        }
         let length = self.position + 1;
         let p = [nh as u32, nk as u32, hd as u32, length as u32];
         e.encode(
@@ -323,13 +491,13 @@ impl Mtp {
             32,
             32,
         )?;
-        if output_logits {
+        if mode == OutputMode::Logits {
             self.head.matvec(&e, &s.normalized, &s.logits)?;
         }
         e.end_encoding()?;
         g.finish(cmd)?;
         let hidden = g.read_f32(&s.normalized, h)?;
-        let logits = if output_logits {
+        let logits = if mode == OutputMode::Logits {
             g.read_f32(&s.logits, c.vocab_size)?
         } else {
             Vec::new()

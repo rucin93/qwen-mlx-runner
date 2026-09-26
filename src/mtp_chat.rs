@@ -176,13 +176,15 @@ impl MtpChatEngine {
                 // Target weights are reused across prompt positions, while
                 // stateful layers still execute the positions causally.
                 let started = Instant::now();
-                let mut block = self.engine.verify_block(chunk)?;
-                self.engine.commit_block_prefix(chunk.len())?;
+                let final_chunk = chunk_index * self.block_size + chunk.len() == prompt.len();
+                let mut block = self.engine.prefill_block(chunk, final_chunk)?;
                 stats.prefill_target_seconds += started.elapsed().as_secs_f64();
-                logits = block
-                    .logits
-                    .pop()
-                    .context("prefill block returned no logits")?;
+                if final_chunk {
+                    logits = block
+                        .logits
+                        .pop()
+                        .context("final prefill block returned no logits")?;
+                }
                 for (relative, (&token, hidden)) in chunk.iter().zip(block.hidden).enumerate() {
                     if !on_text("") {
                         bail!("request cancelled during prefill");
@@ -191,7 +193,7 @@ impl MtpChatEngine {
                         // MTP position i-1 combines x_i with target h_(i-1),
                         // including pairs spanning two target prompt blocks.
                         let started = Instant::now();
-                        self.mtp.forward(token, &previous_hidden, false)?;
+                        self.mtp.prefill_token(token, &previous_hidden)?;
                         stats.prefill_draft_seconds += started.elapsed().as_secs_f64();
                     }
                     previous_hidden = hidden;

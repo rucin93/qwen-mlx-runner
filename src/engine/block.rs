@@ -14,10 +14,11 @@ const MAX_BLOCK: usize = 4;
 // need a saved prefix, so a width-B block stores prefixes 0 through B-1.
 const PREFIX_SLOTS: usize = MAX_BLOCK;
 
-/// Target outputs for a tentative block. `hidden` is after final target RMS.
+/// Target outputs for a block. `hidden` is after final target RMS.
 #[derive(Debug)]
 pub struct BlockOutput {
     pub base_position: usize,
+    /// Empty for nonfinal prompt blocks; verification always returns all rows.
     pub logits: Vec<Vec<f32>>,
     pub hidden: Vec<Vec<f32>>,
 }
@@ -279,9 +280,24 @@ fn copy(
 }
 
 impl Engine {
+    /// Evaluate and commit a prompt block; only the final block needs logits.
+    pub fn prefill_block(
+        &mut self,
+        tokens: &[u32],
+        final_prompt_block: bool,
+    ) -> Result<BlockOutput> {
+        let output = self.evaluate_block(tokens, final_prompt_block)?;
+        self.commit_block_prefix(tokens.len())?;
+        Ok(output)
+    }
+
     /// Evaluate one to four consecutive known/proposed inputs. The resulting
     /// state is tentative until `commit_block_prefix`, including full acceptance.
     pub fn verify_block(&mut self, tokens: &[u32]) -> Result<BlockOutput> {
+        self.evaluate_block(tokens, true)
+    }
+
+    fn evaluate_block(&mut self, tokens: &[u32], output_logits: bool) -> Result<BlockOutput> {
         ensure!(
             self.block.as_ref().is_none_or(|b| b.pending.is_none()),
             "commit or reset the pending verification block before another block"
@@ -306,7 +322,7 @@ impl Engine {
         if self.block.is_none() {
             self.block = Some(BlockState::new(self)?);
         }
-        let result = objc::rc::autoreleasepool(|| self.verify_block_inner(tokens));
+        let result = objc::rc::autoreleasepool(|| self.verify_block_inner(tokens, output_logits));
         match result {
             Ok(output) => {
                 self.block.as_mut().unwrap().pending = Some(Pending {
@@ -379,7 +395,7 @@ impl Engine {
         Ok(())
     }
 
-    fn verify_block_inner(&self, tokens: &[u32]) -> Result<BlockOutput> {
+    fn verify_block_inner(&self, tokens: &[u32], output_logits: bool) -> Result<BlockOutput> {
         let (g, c, block) = (&self.gpu, &self.config, self.block.as_ref().unwrap());
         let s = &block.scratch;
         let batch = tokens.len();
@@ -680,15 +696,21 @@ impl Engine {
                 32,
             )?;
         }
-        self.head.as_ref().unwrap_or(&self.embedding).matmul_block(
-            &e,
-            &s.normalized,
-            &s.logits,
-            batch,
-        )?;
+        if output_logits {
+            self.head.as_ref().unwrap_or(&self.embedding).matmul_block(
+                &e,
+                &s.normalized,
+                &s.logits,
+                batch,
+            )?;
+        }
         e.end_encoding()?;
         g.finish(cmd)?;
-        let logits = g.read_f32(&s.logits, batch * c.vocab_size)?;
+        let logits = if output_logits {
+            g.read_f32(&s.logits, batch * c.vocab_size)?
+        } else {
+            Vec::new()
+        };
         let hidden = g.read_f32(&s.normalized, batch * h)?;
         Ok(BlockOutput {
             base_position: self.position,

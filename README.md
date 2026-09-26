@@ -220,6 +220,22 @@ In the OpenCode TUI, `/thinking` toggles the reasoning display; in the CLI use
 `opencode run --thinking 'your prompt'`. This display flag does not itself enable
 model reasoning. Copy or merge the updated example if you already have a config.
 
+From 0.7.3 the example disables OpenCode's auxiliary title agent. Otherwise it
+can issue a separate request to this same 27B model and compete with the main
+chat on the single-worker server. Main-chat reasoning stays enabled.
+
+If OpenCode feels slower than `generate`, compare the same reasoning effort and
+inspect the full prompt size: OpenCode includes its system instructions, tools,
+project context and history. Enable `QWEN_METAL_LOG_REQUESTS=1` on the server to
+write per-request counts and timings to stderr, including queue wait, prefill,
+first reasoning and first answer text. No prompt or generated text is logged.
+See [latency diagnostics](docs/openai-compatibility.md#latency-diagnostics).
+
+The [0.7.3 validation report](docs/validation-v0.7.3.md) records 190 passing
+tests with actual M1 Metal access, including bit-identical MTP prefill/cache
+continuation and the OpenCode contracts. It also provides the next M5 command;
+full-checkpoint quality and the 32 tokens/s target remain open.
+
 The example sets `limit.context`, `limit.input` and `limit.output` to 8192;
 keep all three equal to the server's `--context` when changing it. The server
 reduces each requested output budget to the space the actual prompt leaves.

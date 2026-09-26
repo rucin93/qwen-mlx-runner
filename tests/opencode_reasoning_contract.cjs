@@ -36,7 +36,7 @@ assert.equal(version.status, 0, version.stderr || String(version.error));
 const result = spawnSync(binary, [
   'run', '--pure', '--format', 'json', '--thinking',
   '--dir', project,
-  '--title', 'Local reasoning contract', '--model', config.model,
+  '--model', config.model,
   `Read ${path.join(project, 'README.md')} and report its number.`,
 ], { cwd: project, env, encoding: 'utf8', timeout: 60000, maxBuffer: 8 * 1024 * 1024 });
 assert.equal(result.status, 0, `${result.error || ''}\n${result.stderr}\n${result.stdout}`);

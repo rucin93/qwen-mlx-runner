@@ -236,6 +236,7 @@ fn dropped_client_cancels_generation_at_empty_poll() {
     let (events, client) = async_mpsc::channel(1);
     sender
         .send(Job {
+            queued_at: Instant::now(),
             request: GenerationRequest {
                 messages: vec![Message {
                     role: "user".into(),
@@ -583,6 +584,52 @@ async fn uncapped_http_output_uses_remaining_context_in_both_engines() {
             );
         }
     }
+}
+
+#[tokio::test]
+async fn response_timings_distinguish_reasoning_content_and_tool_readiness() {
+    for stream in [false, true] {
+        let (app, _) = script_app("Checking.</think>Answer");
+        let payload = json!({"model":"test-model","messages":[{"role":"user","content":"hi"}],"enable_thinking":true,"stream":stream});
+        let (status, body) = post(app, payload).await;
+        assert_eq!(status, StatusCode::OK, "{body}");
+        let response = if stream {
+            chunks(&body)
+                .into_iter()
+                .find(|c| c.get("timings").is_some())
+                .unwrap()
+        } else {
+            serde_json::from_str(&body).unwrap()
+        };
+        let t = &response["timings"];
+        let first = t["first_model_text_seconds"]
+            .as_f64()
+            .expect("first decoded model text timing");
+        let reasoning = t["first_reasoning_seconds"]
+            .as_f64()
+            .expect("first reasoning timing");
+        let content = t["first_content_seconds"]
+            .as_f64()
+            .expect("first content timing");
+        assert!(first <= reasoning && reasoning <= content);
+        assert!(t["queue_seconds"].as_f64().unwrap() >= 0.0);
+        assert!(t["prepare_seconds"].as_f64().unwrap() >= 0.0);
+        assert!(t["total_seconds"].as_f64().unwrap() >= content);
+        assert!(t["first_tool_call_seconds"].is_null());
+    }
+    let (app, _) = script_app(
+        "<tool_call>{\"name\":\"read_file\",\"arguments\":{\"path\":\"README.md\"}}</tool_call>",
+    );
+    let (status, body) = post(app, tool_payload(false)).await;
+    assert_eq!(status, StatusCode::OK, "{body}");
+    let response: Value = serde_json::from_str(&body).unwrap();
+    let t = &response["timings"];
+    assert!(
+        t["first_tool_call_seconds"].as_f64().unwrap()
+            >= t["first_model_text_seconds"].as_f64().unwrap()
+    );
+    assert!(t["first_content_seconds"].is_null());
+    assert!(t["first_reasoning_seconds"].is_null());
 }
 
 #[tokio::test]
@@ -993,5 +1040,11 @@ async fn opencode_cli_reasoning_and_tool_history() {
         String::from_utf8_lossy(&run.stdout),
         String::from_utf8_lossy(&run.stderr)
     );
+    assert_eq!(
+        started.load(Ordering::Relaxed),
+        2,
+        "auxiliary model requests should not compete with chat"
+    );
+    assert_eq!(completed.load(Ordering::Relaxed), 2);
     println!("{}", String::from_utf8_lossy(&run.stdout));
 }
