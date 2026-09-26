@@ -2,6 +2,9 @@
   "$schema": "https://opencode.ai/config.json",
   "model": "qwen-metal/Qwen3.8-27B-4bit",
   "small_model": "qwen-metal/Qwen3.8-27B-4bit",
+  "agent": {
+    "title": { "disable": true }
+  },
   "compaction": {
     "reserved": 1024
   },
@@ -16,6 +19,19 @@
         "Qwen3.8-27B-4bit": {
           "name": "Qwen3.8 27B",
           "tool_call": true,
+          "reasoning": true,
+          "interleaved": {
+            "field": "reasoning_content"
+          },
+          "options": {
+            "reasoningEffort": "medium"
+          },
+          "variants": {
+            "none": { "reasoningEffort": "none" },
+            "low": { "reasoningEffort": "low" },
+            "medium": { "reasoningEffort": "medium" },
+            "xhigh": { "reasoningEffort": "xhigh" }
+          },
           "limit": {
             "context": 8192,
             "input": 8192,

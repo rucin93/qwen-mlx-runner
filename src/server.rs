@@ -4,7 +4,7 @@ use std::sync::{
     atomic::{AtomicBool, AtomicU64, Ordering},
     mpsc::{self, SyncSender},
 };
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use anyhow::{Result, bail};
 use axum::{
@@ -39,6 +39,7 @@ struct ServerState {
 }
 
 struct Job {
+    queued_at: Instant,
     request: GenerationRequest,
     stop: Vec<String>,
     response_format: ResponseFormat,
@@ -51,8 +52,30 @@ enum WorkerEvent {
     Ready,
     InvalidRequest(RequestError),
     Delta(Delta),
-    Done(GenerationOutput, Reply),
+    Done(GenerationOutput, Reply, RequestTiming),
     Error(String),
+}
+
+#[derive(Default, Debug, serde::Serialize)]
+struct RequestTiming {
+    queue_seconds: f64,
+    prepare_seconds: f64,
+    first_model_text_seconds: Option<f64>,
+    first_reasoning_seconds: Option<f64>,
+    first_content_seconds: Option<f64>,
+    first_tool_call_seconds: Option<f64>,
+    total_seconds: f64,
+}
+impl RequestTiming {
+    fn ready(&mut self, delta: &Delta, start: Instant) {
+        let field = match delta {
+            Delta::Reasoning(text) if !text.trim().is_empty() => &mut self.first_reasoning_seconds,
+            Delta::Content(text) if !text.trim().is_empty() => &mut self.first_content_seconds,
+            Delta::Tool(_) => &mut self.first_tool_call_seconds,
+            _ => return,
+        };
+        field.get_or_insert_with(|| start.elapsed().as_secs_f64());
+    }
 }
 
 struct CancelOnDrop(Arc<AtomicBool>);
@@ -92,10 +115,17 @@ fn router(state: ServerState) -> Router {
 }
 
 fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
+    let log_requests = std::env::var("QWEN_METAL_LOG_REQUESTS").as_deref() == Ok("1");
     while let Ok(mut job) = receiver.recv() {
         if job.cancelled.load(Ordering::Relaxed) || job.events.is_closed() {
             continue;
         }
+        let mut timing = RequestTiming {
+            queue_seconds: job.queued_at.elapsed().as_secs_f64(),
+            ..Default::default()
+        };
+        let mut metadata = log_requests.then(|| json!({"kind":"request_timing","id":job.id,"model":engine.model_id(),"message_count":job.request.messages.len(),"tool_count":job.request.tools.definitions.len(),"thinking":job.request.enable_thinking,"reasoning_effort":job.request.reasoning_effort}));
+        let prepare_started = Instant::now();
         if job.response_format == ResponseFormat::JsonObject {
             let instruction = "Respond with one valid JSON object only. Do not use Markdown code fences or text outside the JSON object.";
             if let Some(first) = job
@@ -135,6 +165,10 @@ fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
                 }));
             continue;
         }
+        timing.prepare_seconds = prepare_started.elapsed().as_secs_f64();
+        if let Some(metadata) = &mut metadata {
+            metadata["max_tokens"] = json!(job.request.max_tokens);
+        }
         if job.events.blocking_send(WorkerEvent::Ready).is_err() {
             continue;
         }
@@ -154,10 +188,14 @@ fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
                 if part.is_empty() {
                     return !processor.stopped() && processing_error.is_none();
                 }
+                timing
+                    .first_model_text_seconds
+                    .get_or_insert_with(|| job.queued_at.elapsed().as_secs_f64());
                 match processor.push(part) {
                     Ok(deltas) => {
                         if !buffered {
                             for delta in deltas {
+                                timing.ready(&delta, job.queued_at);
                                 if job.events.blocking_send(WorkerEvent::Delta(delta)).is_err() {
                                     return false;
                                 }
@@ -180,6 +218,11 @@ fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
             if let Some(error) = processing_error {
                 bail!("{error}");
             }
+            if !output.text.is_empty() {
+                timing
+                    .first_model_text_seconds
+                    .get_or_insert_with(|| job.queued_at.elapsed().as_secs_f64());
+            }
             let tail = processor.finish(&output.text)?;
             if buffered {
                 let json: Value = serde_json::from_str(&processor.reply.content).map_err(|e| {
@@ -189,17 +232,26 @@ fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
                     bail!("model did not produce the requested JSON object");
                 }
                 if !processor.reply.reasoning.is_empty() {
+                    timing.ready(
+                        &Delta::Reasoning(processor.reply.reasoning.clone()),
+                        job.queued_at,
+                    );
                     let _ = job
                         .events
                         .blocking_send(WorkerEvent::Delta(Delta::Reasoning(
                             processor.reply.reasoning.clone(),
                         )));
                 }
+                timing.ready(
+                    &Delta::Content(processor.reply.content.clone()),
+                    job.queued_at,
+                );
                 let _ = job.events.blocking_send(WorkerEvent::Delta(Delta::Content(
                     processor.reply.content.clone(),
                 )));
             } else {
                 for delta in tail {
+                    timing.ready(&delta, job.queued_at);
                     if job.events.blocking_send(WorkerEvent::Delta(delta)).is_err() {
                         bail!("client disconnected");
                     }
@@ -213,8 +265,24 @@ fn worker(mut engine: Box<dyn TextGenerator>, receiver: mpsc::Receiver<Job>) {
             output.text = processor.reply.content.clone();
             Ok((output, processor.reply))
         });
+        timing.total_seconds = job.queued_at.elapsed().as_secs_f64();
+        if let Some(mut metadata) = metadata {
+            match &result {
+                Ok((output, _)) => {
+                    metadata["prompt_tokens"] = json!(output.prompt_tokens);
+                    metadata["completion_tokens"] = json!(output.completion_tokens);
+                    metadata["finish_reason"] = json!(output.finish_reason);
+                    metadata["timings"] = timings(output, &timing);
+                }
+                Err(_) => {
+                    metadata["finish_reason"] = json!("error");
+                    metadata["timings"] = json!(timing);
+                }
+            }
+            eprintln!("{metadata}");
+        }
         let event = match result {
-            Ok((output, reply)) => WorkerEvent::Done(output, reply),
+            Ok((output, reply)) => WorkerEvent::Done(output, reply, timing),
             Err(error) => WorkerEvent::Error(error.to_string()),
         };
         let _ = job.events.blocking_send(event);
@@ -388,6 +456,7 @@ async fn completions(
     let cancelled = Arc::new(AtomicBool::new(false));
     let guard = CancelOnDrop(cancelled.clone());
     if let Err(error) = state.sender.try_send(Job {
+        queued_at: Instant::now(),
         request: generation,
         stop,
         response_format,
@@ -440,9 +509,9 @@ async fn completions(
                         };
                         encoder.event(choice(delta,None),None,None)
                     }
-                    WorkerEvent::Done(output,_)=>{
+                    WorkerEvent::Done(output,_,timing)=>{
                         terminal=true;
-                        match encoder.event(choice(json!({}),Some(&output.finish_reason)),None,Some(timings(&output))) {
+                        match encoder.event(choice(json!({}),Some(&output.finish_reason)),None,Some(timings(&output,&timing))) {
                             Ok(event)=>yield Ok(event),Err(error)=>{yield Ok(Event::default().data(error_body(error.to_string(),"server_error",None,"stream_error").to_string()));yield Ok(Event::default().data("[DONE]"));break;}
                         }
                         if stream_options.include_usage {
@@ -471,7 +540,7 @@ async fn completions(
                 WorkerEvent::Error(message) => {
                     return api_error(StatusCode::INTERNAL_SERVER_ERROR, message);
                 }
-                WorkerEvent::Done(output, reply) => {
+                WorkerEvent::Done(output, reply, timing) => {
                     let mut message = json!({"role":"assistant","content":reply.content});
                     if !reply.reasoning.is_empty() {
                         message["reasoning_content"] = json!(reply.reasoning);
@@ -482,7 +551,7 @@ async fn completions(
                             message["content"] = Value::Null;
                         }
                     }
-                    let mut value = json!({"id":id,"object":"chat.completion","created":now(),"model":state.model,"choices":[{"index":0,"message":message,"finish_reason":output.finish_reason,"logprobs":null}],"usage":usage(&output),"timings":timings(&output)});
+                    let mut value = json!({"id":id,"object":"chat.completion","created":now(),"model":state.model,"choices":[{"index":0,"message":message,"finish_reason":output.finish_reason,"logprobs":null}],"usage":usage(&output),"timings":timings(&output,&timing)});
                     if service_tier {
                         value["service_tier"] = json!("default");
                     }
@@ -498,8 +567,11 @@ fn usage(output: &GenerationOutput) -> Value {
     json!({"prompt_tokens":output.prompt_tokens,"completion_tokens":output.completion_tokens,"total_tokens":output.prompt_tokens + output.completion_tokens})
 }
 
-fn timings(output: &GenerationOutput) -> Value {
-    json!({"prefill_seconds":output.prefill_seconds,"decode_seconds":output.decode_seconds})
+fn timings(output: &GenerationOutput, timing: &RequestTiming) -> Value {
+    let mut result = json!(timing);
+    result["prefill_seconds"] = json!(output.prefill_seconds);
+    result["decode_seconds"] = json!(output.decode_seconds);
+    result
 }
 
 #[cfg(test)]
